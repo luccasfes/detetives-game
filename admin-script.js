@@ -1,8 +1,8 @@
-// Constantes
-const ADMIN_PASSWORD = 'admin123'; 
+// ============ CONSTANTES ============
+const ADMIN_PASSWORD = 'admin123';
 
-let allClues = [];
 let allGroups = [];
+let allQuestions = [];
 
 // ============ LOGIN ADMIN ============
 function adminLogin() {
@@ -13,6 +13,7 @@ function adminLogin() {
         errorDiv.textContent = '';
         switchScreen('adminDashboard');
         loadAdminData();
+        switchTab('groups');
     } else {
         errorDiv.textContent = '❌ Senha incorreta! Tente novamente.';
     }
@@ -23,21 +24,39 @@ function adminLogout() {
     document.getElementById('adminPassword').value = '';
 }
 
+// ============ TABS ============
+function switchTab(tab) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    
+    const tabs = {
+        'groups': { index: 0, id: 'tabGroups' },
+        'questions': { index: 1, id: 'tabQuestions' },
+        'ranking': { index: 2, id: 'tabRanking' }
+    };
+    
+    const selected = tabs[tab];
+    document.querySelectorAll('.admin-tab')[selected.index].classList.add('active');
+    document.getElementById(selected.id).classList.add('active');
+}
+
+// ============ ALTERNAR TIPO DE PERGUNTA ============
+function toggleQuestionType() {
+    const type = document.getElementById('newQuestionType').value;
+    const answerField = document.getElementById('answerField');
+    const alternativesField = document.getElementById('alternativesField');
+    
+    if (type === 'multipla') {
+        answerField.style.display = 'none';
+        alternativesField.style.display = 'block';
+    } else {
+        answerField.style.display = 'block';
+        alternativesField.style.display = 'none';
+    }
+}
+
 // ============ CARREGAR DADOS ============
 function loadAdminData() {
-    // Carregar pistas do Firebase
-    database.ref('clues').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            allClues = Object.values(data);
-            renderCluesList();
-            updateStats();
-        } else {
-            allClues = [];
-            renderCluesList();
-        }
-    });
-
     // Carregar grupos
     database.ref('groups').on('value', (snapshot) => {
         const data = snapshot.val();
@@ -46,208 +65,349 @@ function loadAdminData() {
                 name: key,
                 ...data[key]
             }));
-            renderGroupsList();
+            renderGroupsListAdmin();
+            renderGroupsListRanking();
             updateStats();
         } else {
             allGroups = [];
-            renderGroupsList();
+            renderGroupsListAdmin();
+            renderGroupsListRanking();
+            updateStats();
+        }
+    });
+
+    // Carregar perguntas
+    database.ref('questions').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            allQuestions = Object.values(data).sort((a, b) => (a.order || 0) - (b.order || 0));
+            renderQuestionsList();
+            updateStats();
+        } else {
+            allQuestions = [];
+            renderQuestionsList();
+            updateStats();
         }
     });
 }
 
-// ============ GERENCIAR PISTAS ============
-function addClue() {
-    const code = document.getElementById('newClueCode').value.trim().toUpperCase();
-    const name = document.getElementById('newClueName').value.trim();
-    const hint = document.getElementById('newClueHint').value.trim();
-    const difficulty = document.getElementById('newClueDifficulty').value;
-    const messageDiv = document.getElementById('addClueMessage');
+// ============ GERENCIAR GRUPOS ============
+function addGroup() {
+    const name = document.getElementById('newGroupName').value.trim();
+    const membersInput = document.getElementById('newGroupMembers').value.trim();
+    const messageDiv = document.getElementById('addGroupMessage');
 
-    // Validações
-    if (!code || !name || !hint) {
+    if (!name || !membersInput) {
         messageDiv.textContent = '❌ Preencha todos os campos!';
         messageDiv.className = 'clue-message error';
         return;
     }
 
-    // Verificar se código já existe
-    const exists = allClues.some(clue => clue.id === code);
-    if (exists) {
-        messageDiv.textContent = '❌ Este código já está em uso!';
+    const members = membersInput.split(',').map(m => m.trim()).filter(m => m);
+    
+    if (members.length < 2) {
+        messageDiv.textContent = '❌ Mínimo 2 integrantes!';
         messageDiv.className = 'clue-message error';
         return;
     }
 
-    // Salvar no Firebase
-    const newClue = {
-        id: code,
+    if (allGroups.some(g => g.name === name)) {
+        messageDiv.textContent = '❌ Este grupo já existe!';
+        messageDiv.className = 'clue-message error';
+        return;
+    }
+
+    const newGroup = {
         name: name,
-        hint: hint,
-        difficulty: difficulty,
+        members: members,
+        currentQuestion: 0,
+        completed: false,
+        started: false,
         createdAt: Date.now()
     };
 
-    database.ref('clues/' + code).set(newClue)
+    database.ref('groups/' + name).set(newGroup)
         .then(() => {
-            messageDiv.textContent = '✅ Pista adicionada com sucesso!';
+            messageDiv.textContent = '✅ Grupo criado com sucesso!';
             messageDiv.className = 'clue-message success';
-            
-            // Limpar formulário
-            document.getElementById('newClueCode').value = '';
-            document.getElementById('newClueName').value = '';
-            document.getElementById('newClueHint').value = '';
-            
-            // Atualizar lista
-            allClues.push(newClue);
-            renderCluesList();
-            updateStats();
+            document.getElementById('newGroupName').value = '';
+            document.getElementById('newGroupMembers').value = '';
+            loadAdminData();
         })
         .catch((error) => {
-            messageDiv.textContent = '❌ Erro ao adicionar pista: ' + error.message;
+            messageDiv.textContent = '❌ Erro: ' + error.message;
             messageDiv.className = 'clue-message error';
         });
 }
 
-function editClue(clueId) {
-    const clue = allClues.find(c => c.id === clueId);
-    if (!clue) return;
+function deleteGroup(groupName) {
+    if (!confirm(`⚠️ Excluir grupo "${groupName}"?`)) return;
 
-    // Preencher formulário com dados da pista
-    document.getElementById('newClueCode').value = clue.id;
-    document.getElementById('newClueName').value = clue.name;
-    document.getElementById('newClueHint').value = clue.hint;
-    document.getElementById('newClueDifficulty').value = clue.difficulty || 'Médio';
-    
-    // Mudar botão para atualizar
-    const addBtn = document.querySelector('.clue-form .btn-primary');
-    addBtn.textContent = '🔄 Atualizar Pista';
-    addBtn.setAttribute('onclick', `updateClue('${clueId}')`);
-    
-    document.getElementById('addClueMessage').textContent = '✏️ Editando pista: ' + clueId;
-    document.getElementById('addClueMessage').className = 'clue-message';
+    database.ref('groups/' + groupName).remove()
+        .then(() => {
+            showToast('🗑️ Grupo removido!', 'success');
+            loadAdminData();
+        })
+        .catch((error) => {
+            showToast('❌ Erro: ' + error.message, 'error');
+        });
 }
 
-function updateClue(clueId) {
-    const code = document.getElementById('newClueCode').value.trim().toUpperCase();
-    const name = document.getElementById('newClueName').value.trim();
-    const hint = document.getElementById('newClueHint').value.trim();
-    const difficulty = document.getElementById('newClueDifficulty').value;
-    const messageDiv = document.getElementById('addClueMessage');
+// ============ GERENCIAR PERGUNTAS ============
+function addQuestion() {
+    const order = parseInt(document.getElementById('newQuestionOrder').value);
+    const type = document.getElementById('newQuestionType').value;
+    const text = document.getElementById('newQuestionText').value.trim();
+    const hint = document.getElementById('newQuestionHint').value.trim();
+    const messageDiv = document.getElementById('addQuestionMessage');
 
-    if (!code || !name || !hint) {
-        messageDiv.textContent = '❌ Preencha todos os campos!';
+    if (!order || !text) {
+        messageDiv.textContent = '❌ Preencha a ordem e o texto!';
         messageDiv.className = 'clue-message error';
         return;
     }
 
-    const updatedClue = {
-        id: code,
-        name: name,
-        hint: hint,
-        difficulty: difficulty,
-        updatedAt: Date.now()
+    if (allQuestions.some(q => q.order === order)) {
+        messageDiv.textContent = '❌ Esta ordem já está em uso!';
+        messageDiv.className = 'clue-message error';
+        return;
+    }
+
+    let questionData = {
+        id: 'Q' + String(order).padStart(3, '0'),
+        order: order,
+        type: type,
+        text: text,
+        hint: hint || '',
+        createdAt: Date.now()
     };
 
-    database.ref('clues/' + clueId).update(updatedClue)
+    if (type === 'multipla') {
+        // Pegar alternativas
+        const altInputs = document.querySelectorAll('.alt-input');
+        const alternatives = [];
+        altInputs.forEach(input => {
+            const value = input.value.trim();
+            if (value) alternatives.push(value);
+        });
+
+        // Pegar alternativa correta
+        const correctRadio = document.querySelector('input[name="correctAnswer"]:checked');
+        const correctAnswer = correctRadio ? correctRadio.value : null;
+
+        if (alternatives.length < 2) {
+            messageDiv.textContent = '❌ Adicione pelo menos 2 alternativas!';
+            messageDiv.className = 'clue-message error';
+            return;
+        }
+
+        if (!correctAnswer) {
+            messageDiv.textContent = '❌ Selecione a alternativa correta!';
+            messageDiv.className = 'clue-message error';
+            return;
+        }
+
+        questionData.alternatives = alternatives;
+        questionData.correctAnswer = correctAnswer;
+        questionData.answer = alternatives[['A', 'B', 'C', 'D'].indexOf(correctAnswer)];
+
+    } else {
+        // Charada ou Descritiva
+        const answer = document.getElementById('newQuestionAnswer').value.trim();
+        if (!answer) {
+            messageDiv.textContent = '❌ Digite a resposta correta!';
+            messageDiv.className = 'clue-message error';
+            return;
+        }
+        questionData.answer = answer;
+    }
+
+    database.ref('questions/' + questionData.id).set(questionData)
         .then(() => {
-            messageDiv.textContent = '✅ Pista atualizada com sucesso!';
+            messageDiv.textContent = '✅ Pista/Pergunta adicionada com sucesso!';
             messageDiv.className = 'clue-message success';
             
-            // Resetar formulário
-            document.getElementById('newClueCode').value = '';
-            document.getElementById('newClueName').value = '';
-            document.getElementById('newClueHint').value = '';
-            
-            const addBtn = document.querySelector('.clue-form .btn-primary');
-            addBtn.textContent = '➕ Adicionar Pista';
-            addBtn.setAttribute('onclick', 'addClue()');
+            // Limpar formulário
+            document.getElementById('newQuestionOrder').value = '';
+            document.getElementById('newQuestionText').value = '';
+            document.getElementById('newQuestionHint').value = '';
+            document.getElementById('newQuestionAnswer').value = '';
+            document.querySelectorAll('.alt-input').forEach(input => input.value = '');
+            document.querySelectorAll('input[name="correctAnswer"]').forEach(radio => radio.checked = false);
             
             loadAdminData();
         })
         .catch((error) => {
-            messageDiv.textContent = '❌ Erro ao atualizar: ' + error.message;
+            messageDiv.textContent = '❌ Erro: ' + error.message;
             messageDiv.className = 'clue-message error';
         });
 }
 
-function deleteClue(clueId) {
-    if (!confirm(`Deseja realmente excluir a pista "${clueId}"?`)) return;
+function deleteQuestion(questionId) {
+    if (!confirm(`⚠️ Excluir esta pista/pergunta?`)) return;
 
-    database.ref('clues/' + clueId).remove()
+    database.ref('questions/' + questionId).remove()
         .then(() => {
-            allClues = allClues.filter(c => c.id !== clueId);
-            renderCluesList();
-            updateStats();
-            showToast('🗑️ Pista removida com sucesso!');
+            showToast('🗑️ Removido!', 'success');
+            loadAdminData();
         })
         .catch((error) => {
-            showToast('❌ Erro ao remover: ' + error.message, 'error');
+            showToast('❌ Erro: ' + error.message, 'error');
         });
 }
 
 // ============ RENDERIZAR LISTAS ============
-function renderCluesList() {
-    const container = document.getElementById('cluesListAdmin');
+function renderGroupsListAdmin() {
+    const container = document.getElementById('groupsListAdmin');
     
-    if (allClues.length === 0) {
-        container.innerHTML = '<p class="empty-message">Nenhuma pista cadastrada ainda...</p>';
+    if (allGroups.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">👥</div>
+                <p>Nenhum grupo criado ainda</p>
+            </div>
+        `;
         return;
     }
 
-    container.innerHTML = allClues.map(clue => `
-        <div class="clue-card">
-            <div class="clue-card-header">
-                <span class="clue-code">${clue.id}</span>
-                <span class="clue-difficulty ${clue.difficulty?.toLowerCase() || 'medio'}">
-                    ${clue.difficulty || '⭐⭐ Médio'}
-                </span>
+    container.innerHTML = allGroups.map(group => {
+        let statusClass = 'waiting';
+        let statusText = '📖 Aguardando';
+        if (group.completed) {
+            statusClass = 'winner';
+            statusText = '🏆 Finalizado';
+        } else if (group.started) {
+            statusClass = 'playing';
+            statusText = '🏃 Jogando';
+        }
+        
+        return `
+            <div class="group-card-admin">
+                <div class="group-info">
+                    <strong>${group.name}</strong>
+                    <div style="margin-top: 5px;">
+                        ${group.members.map(m => `<span class="member-tag">${m}</span>`).join(' ')}
+                    </div>
+                    <div style="margin-top: 5px;">
+                        <span class="group-status ${statusClass}">${statusText}</span>
+                        ${group.completed ? ` ⏱️ ${formatTime(group.finalTime || 0)}` : ''}
+                        ${group.currentQuestion ? ` 📝 ${group.currentQuestion}/${allQuestions.length}` : ''}
+                    </div>
+                </div>
+                <button onclick="deleteGroup('${group.name}')" class="btn-small btn-delete">🗑️</button>
             </div>
-            <h4>${clue.name}</h4>
-            <p>${clue.hint}</p>
-            <div class="clue-actions">
-                <button onclick="editClue('${clue.id}')" class="btn-edit">✏️ Editar</button>
-                <button onclick="deleteClue('${clue.id}')" class="btn-delete">🗑️ Excluir</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
-function renderGroupsList() {
+function renderQuestionsList() {
+    const container = document.getElementById('questionsListAdmin');
+    
+    if (allQuestions.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📝</div>
+                <p>Nenhuma pista ou pergunta cadastrada</p>
+            </div>
+        `;
+        return;
+    }
+
+    const typeLabels = {
+        'charada': '🔍 Charada',
+        'descritiva': '📝 Descritiva',
+        'multipla': '📝 Múltipla Escolha'
+    };
+
+    const letters = ['A', 'B', 'C', 'D'];
+
+    container.innerHTML = allQuestions.map(q => {
+        let answerHtml = '';
+        
+        if (q.type === 'multipla') {
+            answerHtml = `
+                <div class="alternatives-list">
+                    ${q.alternatives.map((alt, index) => `
+                        <div class="alternative-item ${q.correctAnswer === letters[index] ? 'correct' : ''}">
+                            <span class="alt-letter">${letters[index]})</span>
+                            ${alt}
+                            ${q.correctAnswer === letters[index] ? ' ✅' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            answerHtml = `
+                <div class="question-answer">✅ Resposta: ${q.answer}</div>
+            `;
+        }
+
+        return `
+            <div class="question-card">
+                <div class="question-header">
+                    <div class="question-badge">
+                        <span class="question-order">#${q.order}</span>
+                        <span class="question-type">${typeLabels[q.type] || q.type}</span>
+                        <span style="color:#666;font-size:0.9em;">${q.id}</span>
+                    </div>
+                    <button onclick="deleteQuestion('${q.id}')" class="btn-small btn-delete">🗑️</button>
+                </div>
+                <div class="question-text">${q.text}</div>
+                ${q.hint ? `<div style="color:#666;font-size:0.9em;margin-bottom:10px;">💡 Dica: ${q.hint}</div>` : ''}
+                ${answerHtml}
+            </div>
+        `;
+    }).join('');
+}
+
+function renderGroupsListRanking() {
     const container = document.getElementById('groupsList');
     
     if (allGroups.length === 0) {
-        container.innerHTML = '<p class="empty-message">Nenhum grupo ativo no momento...</p>';
+        container.innerHTML = '<p class="empty-message">Nenhum grupo ativo...</p>';
         return;
     }
 
-    // Ordenar por tempo (os que completaram primeiro)
-    const sortedGroups = allGroups.sort((a, b) => {
+    const sortedGroups = [...allGroups].sort((a, b) => {
         if (a.completed && !b.completed) return -1;
         if (!a.completed && b.completed) return 1;
         if (a.completed && b.completed) return (a.finalTime || 0) - (b.finalTime || 0);
-        return 0;
+        return (a.currentQuestion || 0) - (b.currentQuestion || 0);
     });
 
     container.innerHTML = sortedGroups.map((group, index) => {
-        const cluesFound = group.clues ? group.clues.length : 0;
-        const totalClues = allClues.length || 0;
-        const progress = totalClues > 0 ? Math.round((cluesFound / totalClues) * 100) : 0;
-        const time = group.finalTime ? formatTime(group.finalTime) : formatTime(group.time || 0);
+        const progress = allQuestions.length > 0 ? Math.round(((group.currentQuestion || 0) / allQuestions.length) * 100) : 0;
+        
+        let statusBadge = '';
+        if (group.completed) {
+            statusBadge = '<span style="background:#27ae60;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">🏆 Venceu!</span>';
+        } else if (group.started) {
+            statusBadge = '<span style="background:#3498db;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">🏃 Jogando</span>';
+        } else {
+            statusBadge = '<span style="background:#95a5a6;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">📖 Aguardando</span>';
+        }
         
         return `
-            <div class="group-card ${group.completed ? 'winner' : ''}">
-                <div class="group-rank">#${index + 1}</div>
-                <div class="group-info">
-                    <h4>👥 ${group.name}</h4>
-                    <div class="group-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
+            <div class="group-card ${group.completed ? 'winner' : ''}" style="${group.completed ? 'border:2px solid #27ae60;' : 'border-left:4px solid #3498db;'}padding:15px;margin-bottom:10px;background:white;border-radius:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:15px;">
+                        <span style="font-size:1.5em;font-weight:bold;color:#f39c12;">#${index + 1}</span>
+                        <div>
+                            <h4 style="margin:0;">👥 ${group.name}</h4>
+                            <div style="font-size:0.85em;color:#666;">👤 ${group.members ? group.members.join(', ') : 'N/A'}</div>
                         </div>
-                        <span>${cluesFound}/${totalClues} pistas</span>
                     </div>
-                    <div class="group-details">
-                        <span>⏱️ ${time}</span>
-                        ${group.completed ? '<span class="badge-winner">🏆 VENCEDOR!</span>' : ''}
+                    <div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
+                        <div style="min-width:100px;">
+                            <div style="background:#e9ecef;border-radius:10px;height:8px;overflow:hidden;">
+                                <div style="width:${progress}%;height:100%;background:${group.completed ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#f39c12,#e67e22)'};transition:width 0.5s;"></div>
+                            </div>
+                            <div style="font-size:0.8em;color:#666;text-align:center;margin-top:3px;">
+                                ${group.currentQuestion || 0}/${allQuestions.length} (${progress}%)
+                            </div>
+                        </div>
+                        <div>${statusBadge}</div>
+                        ${group.completed ? `<span style="background:#f8f9fa;padding:3px 10px;border-radius:8px;">⏱️ ${formatTime(group.finalTime || 0)}</span>` : ''}
                     </div>
                 </div>
             </div>
@@ -257,9 +417,10 @@ function renderGroupsList() {
 
 // ============ ESTATÍSTICAS ============
 function updateStats() {
-    document.getElementById('totalCluesAdmin').textContent = allClues.length;
+    document.getElementById('totalGroups').textContent = allGroups.length;
+    document.getElementById('totalQuestions').textContent = allQuestions.length;
     
-    const activeGroups = allGroups.filter(g => !g.completed);
+    const activeGroups = allGroups.filter(g => !g.completed && g.started);
     document.getElementById('activeGroups').textContent = activeGroups.length;
     
     const winners = allGroups.filter(g => g.completed);
@@ -268,24 +429,23 @@ function updateStats() {
 
 // ============ CONTROLES RÁPIDOS ============
 function resetAllGames() {
-    if (!confirm('⚠️ Isso vai apagar todos os dados dos grupos! Continuar?')) return;
+    if (!confirm('⚠️ Resetar TODOS os jogos?')) return;
+    if (!confirm('🔄 Última chance!')) return;
     
     database.ref('groups').remove()
         .then(() => {
-            allGroups = [];
-            renderGroupsList();
-            updateStats();
-            showToast('🔄 Todos os jogos foram resetados!');
+            showToast('🔄 Todos resetados!', 'success');
+            loadAdminData();
         })
         .catch((error) => {
-            showToast('❌ Erro ao resetar: ' + error.message, 'error');
+            showToast('❌ Erro: ' + error.message, 'error');
         });
 }
 
 function exportData() {
     const data = {
-        clues: allClues,
         groups: allGroups,
+        questions: allQuestions,
         exportedAt: new Date().toISOString()
     };
     
@@ -293,11 +453,10 @@ function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `detetives-data-${Date.now()}.json`;
+    a.download = `detetives-data-${new Date().toLocaleDateString('pt-BR')}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
-    showToast('📥 Dados exportados com sucesso!');
+    showToast('📥 Dados exportados!', 'success');
 }
 
 function importData() {
@@ -313,17 +472,18 @@ function importData() {
             try {
                 const data = JSON.parse(event.target.result);
                 
-                // Importar pistas
-                if (data.clues) {
-                    data.clues.forEach(clue => {
-                        database.ref('clues/' + clue.id).set(clue);
-                    });
-                }
+                data.questions.forEach(q => {
+                    database.ref('questions/' + q.id).set(q);
+                });
                 
-                showToast('📤 Dados importados com sucesso!');
+                data.groups.forEach(g => {
+                    database.ref('groups/' + g.name).set(g);
+                });
+                
+                showToast(`📤 Importado! (${data.questions.length} perguntas, ${data.groups.length} grupos)`, 'success');
                 loadAdminData();
             } catch (error) {
-                showToast('❌ Erro ao importar dados: ' + error.message, 'error');
+                showToast('❌ Erro: ' + error.message, 'error');
             }
         };
         
@@ -341,21 +501,32 @@ function formatTime(seconds) {
 }
 
 function showToast(message, type = 'success') {
-    // Criar toast
+    document.querySelectorAll('.toast').forEach(t => t.remove());
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 10px;
+        color: white;
+        font-weight: bold;
+        z-index: 1000;
+        transform: translateX(120%);
+        transition: transform 0.5s ease;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        max-width: 400px;
+        background: ${type === 'success' ? 'linear-gradient(135deg, #27ae60, #2ecc71)' : 'linear-gradient(135deg, #e74c3c, #c0392b)'};
+    `;
+    
     document.body.appendChild(toast);
-    
+    setTimeout(() => toast.style.transform = 'translateX(0)', 100);
     setTimeout(() => {
-        toast.classList.add('show');
-    }, 100);
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
+        toast.style.transform = 'translateX(120%)';
+        setTimeout(() => toast.remove(), 500);
     }, 3000);
 }
 
@@ -366,20 +537,23 @@ function switchScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
-// Permite Enter para login
+// ============ INICIALIZAÇÃO ============
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminPassword').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') adminLogin();
     });
+    toggleQuestionType();
 });
 
-// Exportar funções para uso global
+// ============ EXPORTAR ============
 window.adminLogin = adminLogin;
 window.adminLogout = adminLogout;
-window.addClue = addClue;
-window.editClue = editClue;
-window.updateClue = updateClue;
-window.deleteClue = deleteClue;
+window.switchTab = switchTab;
+window.toggleQuestionType = toggleQuestionType;
+window.addGroup = addGroup;
+window.deleteGroup = deleteGroup;
+window.addQuestion = addQuestion;
+window.deleteQuestion = deleteQuestion;
 window.resetAllGames = resetAllGames;
 window.exportData = exportData;
 window.importData = importData;
