@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Detetives - Jogo de Pistas</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Tela de Login -->
+        <div id="loginScreen" class="screen active">
+            <div class="detective-header">
+                <img src="https://cdn-icons-png.flaticon.com/512/3035/3035369.png" alt="Detetive" class="detective-icon">
+                <h1>🕵️‍♂️ Jogo dos Detetives</h1>
+                <p>Encontre todas as pistas e resolva os mistérios!</p>
+            </div>
+            
+            <div class="login-box">
+                <h2>Entre com seu grupo</h2>
+                <input type="text" id="groupName" placeholder="Nome do grupo (ex: Detetives 1)" class="input-field">
+                <button onclick="login()" class="btn-primary">🔍 Entrar no Jogo</button>
+                <div id="errorMessage" class="error"></div>
+            </div>
+        </div>
+
+        <!-- Tela do Jogo -->
+        <div id="gameScreen" class="screen">
+            <div class="game-header">
+                <div class="group-info">
+                    <span>👥 Grupo: <strong id="displayGroup"></strong></span>
+                </div>
+                <div class="timer">
+                    <span>⏱️ </span>
+                    <span id="timerDisplay">00:00</span>
+                </div>
+                <div class="progress">
+                    <span>📋 Pistas: <span id="cluesFound">0</span>/<span id="totalClues">5</span></span>
+                </div>
+            </div>
+
+            <div class="game-content">
+                <div class="clue-board">
+                    <h2>🔎 Pistas Encontradas</h2>
+                    <div id="cluesList" class="clues-list">
+                        <p class="empty-message">Nenhuma pista encontrada ainda...</p>
+                    </div>
+                </div>
+
+                <div class="clue-input">
+                    <h3>🔐 Digite o código da pista</h3>
+                    <input type="text" id="clueCode" placeholder="Código da pista (ex: PISTA01)" class="input-field">
+                    <button onclick="checkClue()" class="btn-secondary">🔍 Verificar Pista</button>
+                    <div id="clueMessage" class="clue-message"></div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button onclick="resetGame()" class="btn-danger">🔄 Reiniciar Jogo</button>
+                <button onclick="logout()" class="btn-outline">🚪 Sair</button>
+            </div>
+        </div>
+
+        <!-- Tela de Vitória -->
+        <div id="winScreen" class="screen">
+            <div class="win-content">
+                <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" alt="Troféu" class="trophy-icon">
+                <h1>🏆 Parabéns!</h1>
+                <h2>Vocês encontraram todas as pistas!</h2>
+                <p>Tempo: <span id="winTime">00:00</span></p>
+                <button onclick="resetGame()" class="btn-primary">🔄 Jogar Novamente</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
