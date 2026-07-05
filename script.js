@@ -1,41 +1,149 @@
-// Configuração das pistas
-const CLUES = [
-    { id: 'PISTA01', name: '🔍 Pista 1 - Biblioteca', hint: 'Procure na estante de livros' },
-    { id: 'PISTA02', name: '🔍 Pista 2 - Pátio', hint: 'Olhe perto do jardim' },
-    { id: 'PISTA03', name: '🔍 Pista 3 - Sala de Aula', hint: 'Verifique o quadro branco' },
-    { id: 'PISTA04', name: '🔍 Pista 4 - Cantina', hint: 'Procure perto do bebedouro' },
-    { id: 'PISTA05', name: '🔍 Pista 5 - Secretaria', hint: 'Pergunte na recepção' }
-];
-
+// Configuração das pistas (inicial - será carregada do Firebase)
+let CLUES = [];
 let currentGroup = null;
+let currentMembers = [];
 let timerInterval = null;
 let seconds = 0;
 let cluesFound = [];
+let gameStarted = false;
 
-// Login
+// ============ LOGIN ============
 function login() {
     const groupName = document.getElementById('groupName').value.trim();
-    
+    const memberNames = document.getElementById('memberNames').value.trim();
+    const errorDiv = document.getElementById('errorMessage');
+
+    // Validações
     if (!groupName) {
-        showError('Por favor, digite o nome do grupo!');
+        errorDiv.textContent = '❌ Por favor, digite o nome do grupo!';
         return;
     }
 
-    currentGroup = groupName;
-    document.getElementById('displayGroup').textContent = groupName;
-    document.getElementById('errorMessage').textContent = '';
+    if (!memberNames) {
+        errorDiv.textContent = '❌ Por favor, digite os nomes dos integrantes!';
+        return;
+    }
+
+    // Processar nomes
+    const members = memberNames.split(',').map(name => name.trim()).filter(name => name);
     
-    // Carregar dados do grupo
-    loadGroupData(groupName);
+    if (members.length < 2) {
+        errorDiv.textContent = '❌ O grupo precisa ter pelo menos 2 integrantes!';
+        return;
+    }
+
+    // Verificar se o grupo já existe
+    const groupRef = database.ref('groups/' + groupName);
+    groupRef.once('value').then((snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // Verificar se os nomes correspondem
+            const existingMembers = data.members || [];
+            const membersMatch = members.every(m => existingMembers.includes(m)) && 
+                               existingMembers.every(m => members.includes(m));
+            
+            if (!membersMatch) {
+                errorDiv.textContent = '❌ Este grupo já existe com outros integrantes!';
+                return;
+            }
+            
+            // Carregar dados existentes
+            currentGroup = groupName;
+            currentMembers = members;
+            loadGroupData(groupName);
+            showHintsScreen();
+        } else {
+            // Novo grupo
+            currentGroup = groupName;
+            currentMembers = members;
+            
+            // Salvar no Firebase
+            groupRef.set({
+                members: members,
+                clues: [],
+                time: 0,
+                started: false,
+                completed: false,
+                createdAt: Date.now()
+            });
+            
+            showHintsScreen();
+        }
+    }).catch((error) => {
+        errorDiv.textContent = '❌ Erro ao verificar grupo: ' + error.message;
+    });
+}
+
+// ============ TELA DE DICAS ============
+function showHintsScreen() {
+    document.getElementById('displayGroupHints').textContent = currentGroup;
+    document.getElementById('displayMembersHints').textContent = currentMembers.join(', ');
     
-    // Mudar para tela do jogo
+    // Carregar pistas do Firebase
+    loadCluesFromFirebase();
+    
+    switchScreen('hintsScreen');
+}
+
+function loadCluesFromFirebase() {
+    database.ref('clues').once('value').then((snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            CLUES = Object.values(data);
+            renderCluesPreview();
+        } else {
+            // Pistas padrão se não houver no Firebase
+            CLUES = [
+                { id: 'PISTA01', name: '🔍 Pista da Biblioteca', hint: 'Procure na estante de livros' },
+                { id: 'PISTA02', name: '🔍 Pista do Pátio', hint: 'Olhe perto do jardim' },
+                { id: 'PISTA03', name: '🔍 Pista da Sala de Aula', hint: 'Verifique o quadro branco' },
+                { id: 'PISTA04', name: '🔍 Pista da Cantina', hint: 'Procure perto do bebedouro' },
+                { id: 'PISTA05', name: '🔍 Pista da Secretaria', hint: 'Pergunte na recepção' }
+            ];
+            // Salvar pistas padrão no Firebase
+            CLUES.forEach(clue => {
+                database.ref('clues/' + clue.id).set(clue);
+            });
+            renderCluesPreview();
+        }
+    });
+}
+
+function renderCluesPreview() {
+    const container = document.getElementById('cluesPreviewList');
+    container.innerHTML = CLUES.map(clue => `
+        <div class="preview-clue-card">
+            <div class="preview-clue-code">${clue.id}</div>
+            <div class="preview-clue-info">
+                <h4>${clue.name}</h4>
+                <p>💡 Dica: ${clue.hint}</p>
+                <span class="preview-difficulty ${clue.difficulty?.toLowerCase() || 'medio'}">
+                    ${clue.difficulty || '⭐⭐ Médio'}
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function startGame() {
+    // Marcar que o jogo começou
+    database.ref('groups/' + currentGroup).update({
+        started: true,
+        startTime: Date.now()
+    });
+    
+    gameStarted = true;
     switchScreen('gameScreen');
+    document.getElementById('displayGroup').textContent = currentGroup;
+    document.getElementById('displayMembers').textContent = currentMembers.join(', ');
+    document.getElementById('totalClues').textContent = CLUES.length;
+    document.getElementById('cluesFound').textContent = '0';
     
     // Iniciar timer
     startTimer();
 }
 
-// Carregar dados do grupo do Firebase
+// ============ CARREGAR DADOS DO GRUPO ============
 function loadGroupData(groupName) {
     const groupRef = database.ref('groups/' + groupName);
     
@@ -46,6 +154,8 @@ function loadGroupData(groupName) {
             // Carregar pistas encontradas
             if (data.clues) {
                 cluesFound = data.clues;
+                document.getElementById('cluesFound').textContent = cluesFound.length;
+                document.getElementById('totalClues').textContent = CLUES.length;
                 updateCluesList();
             }
             
@@ -54,19 +164,30 @@ function loadGroupData(groupName) {
                 seconds = data.time;
                 updateTimerDisplay();
             }
+            
+            // Se já completou, mostrar vitória
+            if (data.completed) {
+                winGame();
+            }
         }
     }).catch((error) => {
         console.error('Erro ao carregar dados:', error);
     });
 }
 
-// Verificar código da pista
+// ============ VERIFICAR PISTA ============
 function checkClue() {
+    if (!gameStarted) {
+        document.getElementById('clueMessage').textContent = '⚠️ O jogo ainda não começou!';
+        document.getElementById('clueMessage').className = 'clue-message error';
+        return;
+    }
+
     const code = document.getElementById('clueCode').value.toUpperCase().trim();
     const messageDiv = document.getElementById('clueMessage');
     
     if (!code) {
-        messageDiv.textContent = 'Digite um código de pista!';
+        messageDiv.textContent = '❌ Digite um código de pista!';
         messageDiv.className = 'clue-message error';
         return;
     }
@@ -106,7 +227,7 @@ function checkClue() {
     }
 }
 
-// Atualizar lista de pistas
+// ============ ATUALIZAR LISTA ============
 function updateCluesList() {
     const list = document.getElementById('cluesList');
     list.innerHTML = '';
@@ -123,20 +244,20 @@ function updateCluesList() {
             item.className = 'clue-item';
             item.innerHTML = `
                 <span class="clue-name">${clue.name}</span>
-                <span class="clue-time">Encontrada!</span>
+                <span class="clue-time">#${index + 1}</span>
             `;
             list.appendChild(item);
         }
     });
 }
 
-// Atualizar progresso
+// ============ PROGRESSO ============
 function updateProgress() {
     document.getElementById('cluesFound').textContent = cluesFound.length;
     document.getElementById('totalClues').textContent = CLUES.length;
 }
 
-// Salvar dados no Firebase
+// ============ SALVAR DADOS ============
 function saveGroupData() {
     if (!currentGroup) return;
     
@@ -150,7 +271,7 @@ function saveGroupData() {
     });
 }
 
-// Timer
+// ============ TIMER ============
 function startTimer() {
     if (timerInterval) return;
     
@@ -171,12 +292,14 @@ function updateTimerDisplay() {
         `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-// Vitória
+// ============ VITÓRIA ============
 function winGame() {
     clearInterval(timerInterval);
     timerInterval = null;
     
     document.getElementById('winTime').textContent = document.getElementById('timerDisplay').textContent;
+    document.getElementById('winGroup').textContent = currentGroup;
+    document.getElementById('winMembers').textContent = currentMembers.join(', ');
     switchScreen('winScreen');
     
     // Salvar resultado final
@@ -188,15 +311,21 @@ function winGame() {
     }
 }
 
-// Resetar jogo
+// ============ RESETAR ============
 function resetGame() {
     if (currentGroup) {
-        database.ref('groups/' + currentGroup).remove();
+        if (confirm('⚠️ Tem certeza que quer reiniciar? Isso vai apagar o progresso do seu grupo!')) {
+            database.ref('groups/' + currentGroup).remove();
+        } else {
+            return;
+        }
     }
     
     cluesFound = [];
     seconds = 0;
     currentGroup = null;
+    currentMembers = [];
+    gameStarted = false;
     
     if (timerInterval) {
         clearInterval(timerInterval);
@@ -210,24 +339,20 @@ function resetGame() {
     document.getElementById('clueMessage').className = 'clue-message';
     document.getElementById('clueCode').value = '';
     document.getElementById('groupName').value = '';
+    document.getElementById('memberNames').value = '';
     
     switchScreen('loginScreen');
 }
 
-// Logout
+// ============ LOGOUT ============
 function logout() {
-    if (currentGroup && confirm('Deseja realmente sair?')) {
+    if (currentGroup) {
         saveGroupData();
-        resetGame();
     }
+    resetGame();
 }
 
-// Mostrar erro
-function showError(message) {
-    document.getElementById('errorMessage').textContent = message;
-}
-
-// Mudar tela
+// ============ UTILITÁRIOS ============
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('active');
@@ -237,12 +362,19 @@ function switchScreen(screenId) {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('totalClues').textContent = CLUES.length;
+    // Carregar pistas
+    loadCluesFromFirebase();
     
     // Permitir Enter para login
-    document.getElementById('groupName').addEventListener('keypress', function(e) {
+    document.getElementById('memberNames').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             login();
+        }
+    });
+    
+    document.getElementById('groupName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            document.getElementById('memberNames').focus();
         }
     });
     
@@ -254,26 +386,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Sincronização em tempo real (opcional)
-function syncRealTime() {
-    if (!currentGroup) return;
-    
-    const groupRef = database.ref('groups/' + currentGroup);
-    groupRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.clues) {
-            // Atualizar lista se houver mudanças de outro dispositivo
-            if (data.clues.length > cluesFound.length) {
-                cluesFound = data.clues;
-                updateCluesList();
-                updateProgress();
-            }
-        }
-    });
-}
-
 // Exportar funções para uso no HTML
 window.login = login;
+window.startGame = startGame;
 window.checkClue = checkClue;
 window.resetGame = resetGame;
 window.logout = logout;

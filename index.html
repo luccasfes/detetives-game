@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+    <a href="admin.html" class="btn-admin-link">⚙️ Admin</a>
     <div class="container">
         <!-- Tela de Login -->
         <div id="loginScreen" class="screen active">
@@ -17,10 +19,68 @@
             </div>
             
             <div class="login-box">
-                <h2>Entre com seu grupo</h2>
-                <input type="text" id="groupName" placeholder="Nome do grupo (ex: Detetives 1)" class="input-field">
+                <h2>👥 Entre com seu grupo</h2>
+                <div class="form-group">
+                    <label>Nome do Grupo</label>
+                    <input type="text" id="groupName" placeholder="Ex: Detetives 1" class="input-field">
+                </div>
+                <div class="form-group">
+                    <label>Nomes dos Integrantes</label>
+                    <input type="text" id="memberNames" placeholder="Digite os nomes separados por vírgula" class="input-field">
+                    <small class="helper-text">Ex: João, Maria, Pedro, Ana</small>
+                </div>
                 <button onclick="login()" class="btn-primary">🔍 Entrar no Jogo</button>
                 <div id="errorMessage" class="error"></div>
+            </div>
+        </div>
+
+        <!-- Tela de Dicas Iniciais -->
+        <div id="hintsScreen" class="screen">
+            <div class="detective-header">
+                <img src="https://cdn-icons-png.flaticon.com/512/3035/3035369.png" alt="Detetive" class="detective-icon">
+                <h1>🔍 Dicas Iniciais</h1>
+                <p>Leiam atentamente antes de começar!</p>
+            </div>
+
+            <div class="hints-content">
+                <div class="group-info-box">
+                    <h3>👥 Grupo: <span id="displayGroupHints"></span></h3>
+                    <p>Integrantes: <span id="displayMembersHints"></span></p>
+                </div>
+
+                <div class="hints-list">
+                    <h2>📋 Como funciona?</h2>
+                    <div class="hint-card">
+                        <div class="hint-icon">📌</div>
+                        <div class="hint-text">
+                            <h4>1. Encontrem as pistas</h4>
+                            <p>Cada pista está escondida em um local diferente da escola</p>
+                        </div>
+                    </div>
+                    <div class="hint-card">
+                        <div class="hint-icon">🔍</div>
+                        <div class="hint-text">
+                            <h4>2. Digitem o código</h4>
+                            <p>Ao encontrar uma pista, digite o código secreto no site</p>
+                        </div>
+                    </div>
+                    <div class="hint-card">
+                        <div class="hint-icon">🏆</div>
+                        <div class="hint-text">
+                            <h4>3. Ganhem o prêmio</h4>
+                            <p>O grupo que encontrar todas as pistas primeiro vence!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="clues-preview">
+                    <h2>🔎 Pistas Disponíveis</h2>
+                    <div id="cluesPreviewList" class="clues-preview-grid">
+                        <p class="empty-message">Carregando pistas...</p>
+                    </div>
+                </div>
+
+                <button onclick="startGame()" class="btn-primary">🚀 Começar a Caçada!</button>
             </div>
         </div>
 
@@ -29,13 +89,14 @@
             <div class="game-header">
                 <div class="group-info">
                     <span>👥 Grupo: <strong id="displayGroup"></strong></span>
+                    <span class="members-list">👤 <span id="displayMembers"></span></span>
                 </div>
                 <div class="timer">
                     <span>⏱️ </span>
                     <span id="timerDisplay">00:00</span>
                 </div>
                 <div class="progress">
-                    <span>📋 Pistas: <span id="cluesFound">0</span>/<span id="totalClues">5</span></span>
+                    <span>📋 Pistas: <span id="cluesFound">0</span>/<span id="totalClues">0</span></span>
                 </div>
             </div>
 
@@ -49,6 +110,7 @@
 
                 <div class="clue-input">
                     <h3>🔐 Digite o código da pista</h3>
+                    <p class="hint-text-small">Procure pelos papéis com códigos pela escola!</p>
                     <input type="text" id="clueCode" placeholder="Código da pista (ex: PISTA01)" class="input-field">
                     <button onclick="checkClue()" class="btn-secondary">🔍 Verificar Pista</button>
                     <div id="clueMessage" class="clue-message"></div>
@@ -67,15 +129,24 @@
                 <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" alt="Troféu" class="trophy-icon">
                 <h1>🏆 Parabéns!</h1>
                 <h2>Vocês encontraram todas as pistas!</h2>
-                <p>Tempo: <span id="winTime">00:00</span></p>
+                <div class="win-details">
+                    <p>⏱️ Tempo: <span id="winTime">00:00</span></p>
+                    <p>👥 Grupo: <span id="winGroup"></span></p>
+                    <p>👤 Integrantes: <span id="winMembers"></span></p>
+                </div>
                 <button onclick="resetGame()" class="btn-primary">🔄 Jogar Novamente</button>
             </div>
         </div>
     </div>
 
+    <!-- CARREGAR FIREBASE PRIMEIRO -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- DEPOIS O CONFIG -->
     <script src="firebase-config.js"></script>
+    
+    <!-- POR ÚLTIMO O SCRIPT DO JOGO -->
     <script src="script.js"></script>
 </body>
 </html>
