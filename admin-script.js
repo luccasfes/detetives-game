@@ -1,6 +1,7 @@
 const ADMIN_PASSWORD = 'admin123';
 let allGroups = [];
 let allQuestions = [];
+let editingId = null; // 🔥 Variável para controlar se estamos editando ou criando
 
 // ============ LOGIN ============
 function adminLogin() {
@@ -16,7 +17,6 @@ function adminLogin() {
 }
 
 function adminLogout() {
-    // Remove listeners para evitar vazamento de memória
     database.ref('groups').off();
     database.ref('questions').off();
     switchScreen('adminLogin');
@@ -46,7 +46,6 @@ function toggleQuestionType() {
 
 // ============ CARREGAR DADOS EM TEMPO REAL ============
 function loadAdminData() {
-    // 🔥 LISTENER EM TEMPO REAL PARA GRUPOS
     database.ref('groups').on('value', (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -62,7 +61,6 @@ function loadAdminData() {
         updateStats();
     });
 
-    // 🔥 LISTENER EM TEMPO REAL PARA QUESTÕES
     database.ref('questions').on('value', (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -76,7 +74,7 @@ function loadAdminData() {
     });
 }
 
-// ============ ADICIONAR QUESTÃO ============
+// ============ ADICIONAR / EDITAR QUESTÃO ============
 function addQuestion() {
     const order = parseInt(document.getElementById('newQuestionOrder').value);
     const type = document.getElementById('newQuestionType').value;
@@ -91,20 +89,25 @@ function addQuestion() {
         return;
     }
 
-    if (allQuestions.some(q => q.order === order)) {
+    // Verifica se a ordem já existe, ignorando a própria pergunta se estiver editando
+    const existingWithOrder = allQuestions.find(q => q.order === order);
+    if (existingWithOrder && existingWithOrder.id !== editingId) {
         msg.textContent = '❌ Esta ordem já existe!';
         msg.className = 'clue-message error';
         return;
     }
 
+    // Mantém o ID se estiver editando, cria um novo se for cadastro
+    let targetId = editingId ? editingId : ('Q' + String(order).padStart(3, '0'));
+
     let questionData = {
-        id: 'Q' + String(order).padStart(3, '0'),
+        id: targetId,
         order: order,
         type: type,
         location: location,
         challenge: challenge || 'Resolva o desafio da pista!',
         hint: hint || '',
-        createdAt: Date.now()
+        createdAt: editingId ? (allQuestions.find(x => x.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
 
     if (type === 'multipla') {
@@ -145,14 +148,10 @@ function addQuestion() {
         questionData.answer = answer.toLowerCase().trim();
     }
 
-    // Usar set com callback para garantir que foi salvo
-    database.ref('questions/' + questionData.id).set(questionData).then(() => {
-        msg.textContent = '✅ Etapa cadastrada com sucesso!';
+    database.ref('questions/' + targetId).set(questionData).then(() => {
+        msg.textContent = editingId ? '✅ Etapa atualizada com sucesso!' : '✅ Etapa cadastrada com sucesso!';
         msg.className = 'clue-message success';
-        // Limpar formulário
-        document.querySelectorAll('.question-form input, .question-form textarea').forEach(el => el.value = '');
-        document.querySelectorAll('input[name="correctAnswer"]').forEach(r => r.checked = false);
-        // Forçar atualização manual
+        resetQuestionForm();
         loadAdminData();
     }).catch(err => {
         msg.textContent = '❌ Erro: ' + err.message;
@@ -160,11 +159,92 @@ function addQuestion() {
     });
 }
 
+// ============ PREPARAR PARA EDIÇÃO ============
+function editQuestion(id) {
+    const q = allQuestions.find(x => x.id === id);
+    if (!q) return;
+    
+    editingId = id;
+    
+    // Preencher campos
+    document.getElementById('newQuestionOrder').value = q.order;
+    document.getElementById('newQuestionType').value = q.type;
+    document.getElementById('newQuestionLocation').value = q.location;
+    document.getElementById('newQuestionChallenge').value = q.challenge;
+    document.getElementById('newQuestionHint').value = q.hint || '';
+    
+    toggleQuestionType();
+    
+    if (q.type === 'multipla') {
+        const altInputs = document.querySelectorAll('.alt-input');
+        const radios = document.querySelectorAll('input[name="correctAnswer"]');
+        const letters = ['A', 'B', 'C', 'D'];
+        
+        altInputs.forEach((input, i) => {
+            input.value = q.alternatives[i] || '';
+            radios[i].checked = (q.correctAnswer === letters[i]);
+        });
+    } else {
+        document.getElementById('newQuestionAnswer').value = q.answer;
+    }
+    
+    toggleEditMode(true);
+    document.getElementById('tabQuestions').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============ RESETAR FORMULÁRIO ============
+function resetQuestionForm() {
+    editingId = null;
+    document.querySelectorAll('.question-form input, .question-form textarea').forEach(el => el.value = '');
+    document.querySelectorAll('input[name="correctAnswer"]').forEach(r => r.checked = false);
+    
+    const msg = document.getElementById('addQuestionMessage');
+    if(msg.textContent.includes('Erro') || msg.textContent.includes('obrigatório')) {
+        msg.textContent = '';
+        msg.className = 'clue-message';
+    }
+    
+    toggleQuestionType();
+    toggleEditMode(false);
+}
+
+// ============ ALTERAR VISUAL DO BOTÃO DE CADASTRO ============
+function toggleEditMode(isEditing) {
+    const submitBtn = document.querySelector('button[onclick="addQuestion()"]');
+    let cancelBtn = document.getElementById('btnCancelEdit');
+    
+    // Cria o botão de cancelar dinamicamente se não existir
+    if (!cancelBtn && submitBtn) {
+        cancelBtn = document.createElement('button');
+        cancelBtn.id = 'btnCancelEdit';
+        cancelBtn.className = 'btn-outline';
+        cancelBtn.style = 'margin-top: 15px; margin-left: 10px;';
+        cancelBtn.innerHTML = '❌ Cancelar Edição';
+        cancelBtn.onclick = resetQuestionForm;
+        submitBtn.parentNode.insertBefore(cancelBtn, submitBtn.nextSibling);
+    }
+
+    if (isEditing) {
+        if(submitBtn) {
+            submitBtn.innerHTML = '💾 Salvar Alterações';
+            submitBtn.style.backgroundColor = '#27ae60'; // Verde para salvar
+        }
+        if(cancelBtn) cancelBtn.style.display = 'inline-block';
+    } else {
+        if(submitBtn) {
+            submitBtn.innerHTML = '➕ Cadastrar Missão';
+            submitBtn.style.backgroundColor = ''; // Restaura a cor padrão
+        }
+        if(cancelBtn) cancelBtn.style.display = 'none';
+    }
+}
+
 // ============ DELETAR ============
 function deleteQuestion(id) {
     if (confirm('⚠️ Deseja excluir esta etapa do jogo?')) {
         database.ref('questions/' + id).remove().then(() => {
             loadAdminData();
+            if(editingId === id) resetQuestionForm(); // Limpa form se deletou a que estava editando
         });
     }
 }
@@ -218,6 +298,7 @@ function renderQuestionsList() {
             `;
         }
 
+        // 🔥 Botão Editar adicionado aqui!
         return `
             <div class="question-card">
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -227,7 +308,10 @@ function renderQuestionsList() {
                             ${typeLabels[q.type] || q.type}
                         </span>
                     </div>
-                    <button onclick="deleteQuestion('${q.id}')" class="btn-small btn-delete">🗑️ Excluir</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="editQuestion('${q.id}')" class="btn-small btn-primary" style="background: #f39c12; border: none; cursor: pointer;">✏️ Editar</button>
+                        <button onclick="deleteQuestion('${q.id}')" class="btn-small btn-delete">🗑️ Excluir</button>
+                    </div>
                 </div>
                 
                 <div style="margin: 10px 0; background: #fff8e1; padding: 12px; border-radius: 8px; border-left: 5px solid #f39c12;">
@@ -257,13 +341,10 @@ function renderGroupsListRanking() {
         return;
     }
 
-    // Ordenar: primeiro os vencedores, depois por progresso
     const sortedGroups = [...allGroups].sort((a, b) => {
-        // Vencedores primeiro
         if (a.completed && !b.completed) return -1;
         if (!a.completed && b.completed) return 1;
         if (a.completed && b.completed) return (a.finalTime || 0) - (b.finalTime || 0);
-        // Ordenar por progresso (maior primeiro)
         return (b.currentQuestion || 0) - (a.currentQuestion || 0);
     });
 
@@ -279,7 +360,6 @@ function renderGroupsListRanking() {
             badge = '<span style="background:#95a5a6;padding:4px 14px;border-radius:20px;color:white;font-size:0.8em;font-weight:bold;">📖 Na Base</span>';
         }
         
-        // Tempo formatado
         const timeSeconds = g.time || 0;
         const minutes = Math.floor(timeSeconds / 60).toString().padStart(2, '0');
         const seconds = (timeSeconds % 60).toString().padStart(2, '0');
@@ -309,10 +389,7 @@ function renderGroupsListRanking() {
     }).join('');
 }
 
-// ============ ANÁLISE DE APRENDIZAGEM (por etapa) ============
-// 🔥 NOVO: cruza allQuestions com o questionStats gravado por cada grupo
-// (errors e timeSpent por etapa) para mostrar onde os alunos mais erram
-// e quem resolveu mais rápido.
+// ============ ANÁLISE DE APRENDIZAGEM ============
 function computeQuestionAnalytics() {
     return allQuestions.map(q => {
         const statsEntries = allGroups
@@ -363,7 +440,6 @@ function renderQuestionAnalytics() {
         return;
     }
 
-    // Ranking das etapas com mais erros somando todos os grupos
     const ranked = withData.filter(a => a.totalErrors > 0).sort((a, b) => b.totalErrors - a.totalErrors);
 
     if (ranked.length === 0) {
@@ -388,7 +464,6 @@ function renderQuestionAnalytics() {
         }).join('');
     }
 
-    // Detalhe de cada etapa, na ordem da caçada
     detailContainer.innerHTML = withData
         .sort((a, b) => (a.question.order || 0) - (b.question.order || 0))
         .map(a => `
@@ -434,7 +509,7 @@ function updateStats() {
     if (winnerGroups) winnerGroups.textContent = allGroups.filter(g => g.completed).length;
 }
 
-// ============ RESETAR TODOS OS GRUPOS ============
+// ============ RESETAR ============
 function resetAllGames() {
     if (confirm('⚠️ ATENÇÃO: Deseja apagar TODOS os grupos e começar uma nova sessão?')) {
         database.ref('groups').remove().then(() => {
@@ -443,7 +518,6 @@ function resetAllGames() {
     }
 }
 
-// ============ RESETAR UMA PERGUNTA ESPECÍFICA ============
 function resetGroupProgress(groupName) {
     if (confirm(`⚠️ Deseja resetar o progresso do grupo "${groupName}"?`)) {
         database.ref('groups/' + groupName).update({
@@ -476,6 +550,8 @@ window.adminLogout = adminLogout;
 window.switchTab = switchTab;
 window.toggleQuestionType = toggleQuestionType;
 window.addQuestion = addQuestion;
+window.editQuestion = editQuestion; 
+window.resetQuestionForm = resetQuestionForm; 
 window.deleteQuestion = deleteQuestion;
 window.resetAllGames = resetAllGames;
 window.resetGroupProgress = resetGroupProgress;
