@@ -1,8 +1,6 @@
 // firebase-config.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// SUAS CHAVES DO FIREBASE AQUI
+// Cole aqui as chaves geradas no painel do Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyChHtFpx1lYLSbZfhlsCFbFapiO1vcKxFE",
     authDomain: "detetives-game.firebaseapp.com",
@@ -13,8 +11,8 @@ const firebaseConfig = {
     appId: "1:171144878887:web:093bbcf605646b8bab2702"
   };
 
-// Inicializa o Firebase
-const app = initializeApp(firebaseConfig);
+// Inicializa o aplicativo Firebase
+firebase.initializeApp(firebaseConfig);
 
-// Exporta o banco de dados (Firestore) para podermos usar no script.js
-export const db = getFirestore(app);
+// Cria a conexão com o Realtime Database para ser usada no script.js
+const database = firebase.database();
