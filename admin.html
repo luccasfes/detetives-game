@@ -5,521 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👑 Admin - Detetives Matemáticos</title>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Estilos Admin */
-        .admin-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 10px;
-            flex-wrap: wrap;
-        }
-
-        .admin-tab {
-            padding: 10px 20px;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            color: #666;
-            transition: all 0.3s;
-            border-radius: 8px;
-        }
-
-        .admin-tab:hover {
-            background: #f8f9fa;
-        }
-
-        .admin-tab.active {
-            background: #f39c12;
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .question-form {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-
-        .question-form .form-group {
-            margin-bottom: 15px;
-        }
-
-        .question-form label {
-            font-weight: bold;
-            color: #555;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .question-form textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 1em;
-            font-family: inherit;
-            resize: vertical;
-            min-height: 80px;
-            transition: all 0.3s;
-        }
-
-        .question-form textarea:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .question-form select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 1em;
-            background: white;
-        }
-
-        .question-form select:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .alternatives-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .alternative-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .alternative-item input[type="text"] {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: all 0.3s;
-        }
-
-        .alternative-item input[type="text"]:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .alternative-item input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            accent-color: #27ae60;
-        }
-
-        .alternative-item .letter {
-            font-weight: bold;
-            color: #1a1a2e;
-            min-width: 25px;
-        }
-
-        .btn-primary {
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(243, 156, 18, 0.4);
-        }
-
-        .btn-secondary {
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-secondary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(52, 152, 219, 0.4);
-        }
-
-        .btn-danger {
-            padding: 12px 30px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-danger:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-        }
-
-        .btn-outline {
-            padding: 12px 30px;
-            background: transparent;
-            color: #666;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-outline:hover {
-            background: #f8f9fa;
-            border-color: #999;
-        }
-
-        .btn-small {
-            padding: 5px 15px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.3s;
-        }
-
-        .btn-edit {
-            background: #3498db;
-            color: white;
-        }
-
-        .btn-edit:hover {
-            background: #2980b9;
-        }
-
-        .btn-delete {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .btn-delete:hover {
-            background: #c0392b;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-
-        .stat-card h3 {
-            color: #666;
-            font-size: 0.9em;
-            margin-bottom: 5px;
-        }
-
-        .stat-card p {
-            font-size: 2em;
-            font-weight: bold;
-            color: #1a1a2e;
-        }
-
-        .question-card {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            border-left: 4px solid #f39c12;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .question-card .question-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 10px;
-        }
-
-        .question-card .question-badge {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .question-card .question-order {
-            background: #f39c12;
-            color: white;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-
-        .question-card .question-type {
-            background: #3498db;
-            color: white;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-
-        .question-card .question-text {
-            color: #1a1a2e;
-            font-size: 1em;
-            line-height: 1.5;
-            margin-bottom: 10px;
-        }
-
-        .question-card .question-answer {
-            background: #d4edda;
-            padding: 8px 15px;
-            border-radius: 8px;
-            display: inline-block;
-            font-weight: bold;
-            color: #155724;
-        }
-
-        .question-card .alternatives-list {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px 15px;
-            margin: 10px 0;
-        }
-
-        .question-card .alternative-item {
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.95em;
-        }
-
-        .question-card .alternative-item.correct {
-            background: #d4edda;
-            color: #155724;
-            font-weight: bold;
-        }
-
-        .question-card .alternative-item .alt-letter {
-            font-weight: bold;
-            margin-right: 5px;
-        }
-
-        .question-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .group-card-admin {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            border-left: 4px solid #3498db;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .group-card-admin .group-info {
-            flex: 1;
-        }
-
-        .member-tag {
-            display: inline-block;
-            background: #f8f9fa;
-            padding: 2px 10px;
-            border-radius: 12px;
-            margin: 2px;
-            font-size: 0.8em;
-        }
-
-        .group-status {
-            font-size: 0.8em;
-            padding: 3px 10px;
-            border-radius: 12px;
-        }
-
-        .group-status.waiting {
-            background: #f8f9fa;
-            color: #666;
-        }
-
-        .group-status.playing {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .group-status.winner {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-
-        .empty-state .empty-icon {
-            font-size: 4em;
-            margin-bottom: 10px;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .helper-text {
-            color: #666;
-            font-size: 0.85em;
-            margin-top: 5px;
-            display: block;
-        }
-
-        .clue-message {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .clue-message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .clue-message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .admin-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f39c12;
-        }
-
-        .admin-header h1 {
-            color: #1a1a2e;
-        }
-
-        .admin-container {
-            max-width: 1200px !important;
-        }
-
-        .admin-section {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 25px;
-        }
-
-        .admin-section h2 {
-            color: #1a1a2e;
-            margin-bottom: 20px;
-        }
-
-        .quick-actions {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        @media (max-width: 768px) {
-            .alternatives-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .question-card .alternatives-list {
-                grid-template-columns: 1fr;
-            }
-
-            .question-card .question-header {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .question-actions {
-                flex-wrap: wrap;
-            }
-
-            .group-card-admin {
-                flex-direction: column;
-                gap: 10px;
-                text-align: center;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="container admin-container">
-        <!-- Login Admin -->
+        <!-- Login do Professor -->
         <div id="adminLogin" class="screen active">
             <div class="detective-header">
                 <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Admin" class="detective-icon">
-                <h1>👑 Painel do Professor</h1>
-                <p>Gerencie grupos, pistas e perguntas</p>
+                <h1>👑 Controle do Professor</h1>
+                <p>Acesse para organizar a caça ao tesouro</p>
             </div>
-            
             <div class="login-box">
-                <h2>Login do Professor</h2>
-                <input type="password" id="adminPassword" placeholder="Senha" class="input-field">
+                <input type="password" id="adminPassword" placeholder="Senha de Acesso" class="input-field">
                 <button onclick="adminLogin()" class="btn-primary">🔐 Entrar</button>
                 <div id="adminError" class="error"></div>
             </div>
         </div>
 
-        <!-- Dashboard Admin -->
+        <!-- Dashboard do Professor -->
         <div id="adminDashboard" class="screen">
             <div class="admin-header">
                 <h1>👑 Painel do Professor</h1>
@@ -528,165 +31,84 @@
 
             <!-- Estatísticas -->
             <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>👥 Grupos</h3>
-                    <p id="totalGroups">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>📝 Pistas/Perguntas</h3>
-                    <p id="totalQuestions">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>🏃 Jogando</h3>
-                    <p id="activeGroups">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>🏆 Vencedores</h3>
-                    <p id="winnerGroups">0</p>
-                </div>
+                <div class="stat-card"><h3>👥 Grupos</h3><p id="totalGroups">0</p></div>
+                <div class="stat-card"><h3>📝 Etapas</h3><p id="totalQuestions">0</p></div>
+                <div class="stat-card"><h3>🏃 Na Caçada</h3><p id="activeGroups">0</p></div>
+                <div class="stat-card"><h3>🏆 Vencedores</h3><p id="winnerGroups">0</p></div>
             </div>
 
             <!-- Abas -->
             <div class="admin-tabs">
-                <button class="admin-tab active" onclick="switchTab('groups')">👥 Grupos</button>
-                <button class="admin-tab" onclick="switchTab('questions')">📝 Pistas/Perguntas</button>
-                <button class="admin-tab" onclick="switchTab('ranking')">🏆 Ranking</button>
+                <button class="admin-tab active" onclick="switchTab('ranking')">🏆 Monitorar Grupos</button>
+                <button class="admin-tab" onclick="switchTab('questions')">📝 Criar Missões (Papéis)</button>
             </div>
 
-            <!-- Tab: Grupos -->
-            <div id="tabGroups" class="tab-content active">
+            <!-- ABA: Monitorar Grupos (Ranking) -->
+            <div id="tabRanking" class="tab-content active">
                 <div class="admin-section">
-                    <h2>👥 Gerenciar Grupos</h2>
-                    
-                    <div class="question-form">
-                        <h3>➕ Criar Novo Grupo</h3>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Nome do Grupo</label>
-                                <input type="text" id="newGroupName" placeholder="Ex: Detetives 1" class="input-field">
-                            </div>
-                            <div class="form-group">
-                                <label>Integrantes (separados por vírgula)</label>
-                                <input type="text" id="newGroupMembers" placeholder="Ex: João, Maria, Pedro" class="input-field">
-                                <small class="helper-text">Mínimo 2 integrantes</small>
-                            </div>
-                        </div>
-                        <button onclick="addGroup()" class="btn-primary">➕ Criar Grupo</button>
-                        <div id="addGroupMessage" class="clue-message"></div>
-                    </div>
-
-                    <div id="groupsListAdmin">
-                        <p class="empty-message">Nenhum grupo criado ainda...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab: Pistas/Perguntas -->
-            <div id="tabQuestions" class="tab-content">
-                <div class="admin-section">
-                    <h2>📝 Gerenciar Pistas e Perguntas</h2>
-                    
-                    <div class="question-form">
-                        <h3>➕ Criar Nova Pista/Pergunta</h3>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Ordem</label>
-                                <input type="number" id="newQuestionOrder" placeholder="1" class="input-field" min="1">
-                                <small class="helper-text">Ordem em que aparece</small>
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo</label>
-                                <select id="newQuestionType" class="input-field" onchange="toggleQuestionType()">
-                                    <option value="charada">🔍 Charada (Pista)</option>
-                                    <option value="descritiva">📝 Pergunta Descritiva</option>
-                                    <option value="multipla">📝 Múltipla Escolha</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Texto da Pista/Pergunta</label>
-                            <textarea id="newQuestionText" placeholder="Digite o texto da pista ou pergunta..."></textarea>
-                            <small class="helper-text">Ex: "Não sou pessoa, mas recebo todos os dias quem chega para aprender..."</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Dica Adicional (opcional)</label>
-                            <input type="text" id="newQuestionHint" placeholder="Ex: Procure na entrada da escola" class="input-field">
-                            <small class="helper-text">Onde os alunos devem procurar a próxima pista</small>
-                        </div>
-
-                        <!-- Campo para resposta (Charada e Descritiva) -->
-                        <div class="form-group" id="answerField">
-                            <label>Resposta Correta</label>
-                            <input type="text" id="newQuestionAnswer" placeholder="Digite a resposta correta" class="input-field">
-                            <small class="helper-text">Ex: entrada, biblioteca, 43, etc.</small>
-                        </div>
-
-                        <!-- Campo para alternativas (Múltipla Escolha) -->
-                        <div class="form-group" id="alternativesField" style="display:none;">
-                            <label>Alternativas</label>
-                            <div class="alternatives-grid" id="alternativesContainer">
-                                <div class="alternative-item">
-                                    <span class="letter">A)</span>
-                                    <input type="text" placeholder="Alternativa A" class="alt-input">
-                                    <input type="radio" name="correctAnswer" value="A" class="correct-radio">
-                                    <span style="font-size:0.8em;color:#666;">✓</span>
-                                </div>
-                                <div class="alternative-item">
-                                    <span class="letter">B)</span>
-                                    <input type="text" placeholder="Alternativa B" class="alt-input">
-                                    <input type="radio" name="correctAnswer" value="B" class="correct-radio">
-                                    <span style="font-size:0.8em;color:#666;">✓</span>
-                                </div>
-                                <div class="alternative-item">
-                                    <span class="letter">C)</span>
-                                    <input type="text" placeholder="Alternativa C" class="alt-input">
-                                    <input type="radio" name="correctAnswer" value="C" class="correct-radio">
-                                    <span style="font-size:0.8em;color:#666;">✓</span>
-                                </div>
-                                <div class="alternative-item">
-                                    <span class="letter">D)</span>
-                                    <input type="text" placeholder="Alternativa D" class="alt-input">
-                                    <input type="radio" name="correctAnswer" value="D" class="correct-radio">
-                                    <span style="font-size:0.8em;color:#666;">✓</span>
-                                </div>
-                            </div>
-                            <small class="helper-text">Selecione o ✓ da alternativa correta</small>
-                        </div>
-
-                        <button onclick="addQuestion()" class="btn-primary">➕ Adicionar</button>
-                        <div id="addQuestionMessage" class="clue-message"></div>
-                    </div>
-
-                    <div class="questions-list-admin">
-                        <h3>📋 Pistas e Perguntas Cadastradas</h3>
-                        <div id="questionsListAdmin">
-                            <p class="empty-message">Nenhuma pista ou pergunta cadastrada ainda...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab: Ranking -->
-            <div id="tabRanking" class="tab-content">
-                <div class="admin-section">
-                    <h2>🏆 Ranking dos Grupos</h2>
+                    <h2>🏆 Acompanhamento Ao Vivo</h2>
                     <div id="groupsList" class="groups-grid">
-                        <p class="empty-message">Nenhum grupo ativo no momento...</p>
+                        <p class="empty-message">Nenhum grupo correndo pela escola no momento...</p>
                     </div>
                 </div>
 
                 <div class="admin-section">
                     <h2>⚡ Controles Rápidos</h2>
                     <div class="quick-actions">
-                        <button onclick="resetAllGames()" class="btn-danger">🔄 Resetar Todos os Jogos</button>
-                        <button onclick="exportData()" class="btn-secondary">📥 Exportar Dados</button>
-                        <button onclick="importData()" class="btn-secondary">📤 Importar Dados</button>
+                        <button onclick="resetAllGames()" class="btn-danger">🔄 Apagar Todos os Grupos e Reiniciar</button>
                     </div>
                 </div>
             </div>
+
+            <!-- ABA: Criar Missões -->
+            <div id="tabQuestions" class="tab-content">
+                <div class="admin-section">
+                    <h2>📝 Cadastrar Nova Etapa da Caçada</h2>
+                    
+                    <div class="question-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Ordem da Etapa (Ex: 1, 2, 3)</label>
+                                <input type="number" id="newQuestionOrder" placeholder="1" class="input-field" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>🔐 A Senha Numérica (Resultado)</label>
+                                <input type="text" id="newQuestionAnswer" placeholder="Ex: 120" class="input-field" style="border-color: #27ae60;">
+                                <small class="helper-text">O resultado da conta matemática que o grupo tem que acertar.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>📍 Fase 1: Onde esconder o papel? (Dica de Localização)</label>
+                            <textarea id="newQuestionLocation" class="input-field" placeholder="Ex: Corram para a quadra de esportes e procurem atrás do gol principal."></textarea>
+                            <small class="helper-text">O que as crianças vão ler no celular para saber para onde correr.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>🧮 Fase 2: O que está escrito no papel físico?</label>
+                            <input type="text" id="newQuestionChallenge" class="input-field" placeholder="Ex: Resolvam a conta de divisão!">
+                            <small class="helper-text">Aparece no celular logo acima de onde eles digitam o resultado numérico.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>💡 Dica do Professor (Opcional)</label>
+                            <input type="text" id="newQuestionHint" class="input-field" placeholder="Ex: Lembre-se da tabuada do 8.">
+                            <small class="helper-text">Só aparece se eles clicarem no botão "Pedir Dica" (limitado a 3 usos).</small>
+                        </div>
+
+                        <button onclick="addQuestion()" class="btn-primary" style="margin-top: 15px;">➕ Cadastrar Missão</button>
+                        <div id="addQuestionMessage" class="clue-message"></div>
+                    </div>
+
+                    <div class="questions-list-admin">
+                        <h3>📋 Caminho da Caça ao Tesouro</h3>
+                        <div id="questionsListAdmin">
+                            <p class="empty-message">Nenhuma etapa cadastrada ainda...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
 

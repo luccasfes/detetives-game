@@ -3,723 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔍 Detetives - Jogo de Pistas</title>
+    <title>🔍 Detetives Matemáticos</title>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Estilos do Jogo */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 30px;
-            padding: 30px;
-            max-width: 900px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .container::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: repeating-conic-gradient(
-                transparent 0%,
-                rgba(255, 215, 0, 0.03) 25%,
-                transparent 50%
-            );
-            animation: rotateBackground 30s linear infinite;
-            pointer-events: none;
-        }
-
-        @keyframes rotateBackground {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .screen {
-            display: none;
-            position: relative;
-            z-index: 1;
-        }
-
-        .screen.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Login */
-        .detective-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .detective-icon {
-            width: 120px;
-            height: 120px;
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .detective-header h1 {
-            font-size: 2.5em;
-            color: #1a1a2e;
-            margin: 10px 0;
-        }
-
-        .detective-header p {
-            color: #666;
-            font-size: 1.1em;
-        }
-
-        .login-box {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 20px;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
-        .login-box h2 {
-            color: #1a1a2e;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .login-steps {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #999;
-        }
-
-        .step .step-number {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #e9ecef;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #666;
-        }
-
-        .step.active .step-number {
-            background: #f39c12;
-            color: white;
-        }
-
-        .step.completed .step-number {
-            background: #27ae60;
-            color: white;
-        }
-
-        .step.active {
-            color: #1a1a2e;
-        }
-
-        .login-step {
-            display: none;
-        }
-
-        .login-step.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .group-name-input {
-            margin: 20px 0;
-        }
-
-        .group-name-input input {
-            width: 100%;
-            padding: 12px 20px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 1.1em;
-            text-align: center;
-        }
-
-        .group-name-input input:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .members-container {
-            margin: 20px 0;
-        }
-
-        .members-container .member-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .members-container .member-number {
-            background: #f39c12;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 0.9em;
-            flex-shrink: 0;
-        }
-
-        .members-container input {
-            flex: 1;
-            padding: 10px 15px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: all 0.3s;
-        }
-
-        .members-container input:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .members-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .btn-add-member {
-            padding: 10px 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .btn-add-member:hover {
-            background: #2980b9;
-            transform: translateY(-2px);
-        }
-
-        .btn-remove-member {
-            padding: 10px 20px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .btn-remove-member:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-        }
-
-        .btn-primary {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(243, 156, 18, 0.4);
-        }
-
-        .btn-back {
-            padding: 10px 20px;
-            background: #e9ecef;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .btn-back:hover {
-            background: #dee2e6;
-        }
-
-        .group-preview {
-            background: #f8f9fa;
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin: 15px 0;
-        }
-
-        .group-preview .label {
-            color: #666;
-            font-size: 0.9em;
-        }
-
-        .group-preview .value {
-            font-weight: bold;
-            color: #1a1a2e;
-            font-size: 1.1em;
-        }
-
-        .member-tag-preview {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 2px 12px;
-            border-radius: 12px;
-            margin: 2px;
-            font-size: 0.9em;
-        }
-
-        .error {
-            color: #e74c3c;
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .helper-text {
-            color: #666;
-            font-size: 0.85em;
-            margin-top: 5px;
-            display: block;
-        }
-
-        .input-field {
-            width: 100%;
-            padding: 12px 20px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        .input-field:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        /* Game */
-        .game-header {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr;
-            gap: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            align-items: center;
-        }
-
-        .group-info {
-            font-size: 1.1em;
-        }
-
-        .members-list {
-            font-size: 0.9em;
-            color: #666;
-            display: block;
-            margin-top: 5px;
-        }
-
-        .timer {
-            text-align: center;
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #f39c12;
-        }
-
-        .progress {
-            text-align: right;
-            font-size: 1.1em;
-        }
-
-        .game-content {
-            margin: 20px 0;
-        }
-
-        .question-container {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        }
-
-        .question-number {
-            background: #f39c12;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            display: inline-block;
-            font-weight: bold;
-            font-size: 0.9em;
-            margin-bottom: 10px;
-        }
-
-        .question-text {
-            font-size: 1.2em;
-            color: #1a1a2e;
-            margin: 20px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            text-align: left;
-            line-height: 1.6;
-        }
-
-        .question-hint {
-            color: #666;
-            font-size: 1.1em;
-            margin: 15px 0;
-        }
-
-        /* Alternativas */
-        .alternatives-container {
-            display: none;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .alternative-option {
-            padding: 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-align: left;
-        }
-
-        .alternative-option:hover {
-            border-color: #f39c12;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .alternative-option.selected {
-            border-color: #f39c12;
-            background: #fff8e1;
-        }
-
-        .alternative-option.correct {
-            border-color: #27ae60;
-            background: #d4edda;
-        }
-
-        .alternative-option.wrong {
-            border-color: #e74c3c;
-            background: #f8d7da;
-        }
-
-        .alternative-option .alt-letter {
-            font-weight: bold;
-            color: #1a1a2e;
-            min-width: 25px;
-        }
-
-        .alternative-option .alt-text {
-            flex: 1;
-        }
-
-        /* Campo resposta */
-        .answer-field {
-            display: none;
-            margin: 20px 0;
-        }
-
-        .answer-field input {
-            width: 100%;
-            max-width: 300px;
-            padding: 12px 20px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 1.1em;
-            text-align: center;
-            transition: all 0.3s;
-        }
-
-        .answer-field input:focus {
-            outline: none;
-            border-color: #f39c12;
-            box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2);
-        }
-
-        .btn-check-answer {
-            padding: 12px 40px;
-            background: linear-gradient(135deg, #27ae60, #2ecc71);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-check-answer:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(39, 174, 96, 0.4);
-        }
-
-        .btn-check-answer:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .feedback-message {
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            font-weight: bold;
-            display: none;
-        }
-
-        .feedback-message.success {
-            display: block;
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .feedback-message.error {
-            display: block;
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .progress-challenges {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin: 20px 0;
-            flex-wrap: wrap;
-        }
-
-        .progress-dot {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 2px solid #ddd;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #999;
-            transition: all 0.3s;
-        }
-
-        .progress-dot.completed {
-            background: #27ae60;
-            border-color: #27ae60;
-            color: white;
-        }
-
-        .progress-dot.current {
-            border-color: #f39c12;
-            color: #f39c12;
-            animation: pulse 1s infinite;
-        }
-
-        .progress-dot.locked {
-            opacity: 0.5;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn-danger {
-            padding: 10px 20px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .btn-danger:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-        }
-
-        .btn-outline {
-            padding: 10px 20px;
-            background: transparent;
-            color: #666;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-
-        .btn-outline:hover {
-            background: #f8f9fa;
-            border-color: #999;
-        }
-
-        /* Win Screen */
-        .win-content {
-            text-align: center;
-            padding: 40px 20px;
-        }
-
-        .trophy-icon {
-            width: 150px;
-            height: 150px;
-            animation: bounce 1s ease infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .win-content h1 {
-            font-size: 3em;
-            color: #f39c12;
-            margin: 20px 0;
-        }
-
-        .win-details {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            text-align: left;
-        }
-
-        .win-details p {
-            margin: 8px 0;
-            font-size: 1.1em;
-        }
-
-        .win-details span {
-            color: #1a1a2e;
-            font-weight: bold;
-        }
-
-        @media (max-width: 768px) {
-            .alternatives-container {
-                grid-template-columns: 1fr;
-            }
-
-            .game-header {
-                grid-template-columns: 1fr;
-                text-align: center;
-                gap: 10px;
-            }
-
-            .progress {
-                text-align: center;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .detective-header h1 {
-                font-size: 2em;
-            }
-
-            .detective-icon {
-                width: 80px;
-                height: 80px;
-            }
-
-            .question-text {
-                font-size: 1em;
-                padding: 15px;
-            }
-
-            .container {
-                padding: 20px;
-            }
-
-            .login-steps {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .members-container .member-row {
-                flex-wrap: wrap;
-            }
-
-            .members-actions {
-                flex-direction: column;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="container">
@@ -727,123 +12,120 @@
         <div id="loginScreen" class="screen active">
             <div class="detective-header">
                 <img src="https://cdn-icons-png.flaticon.com/512/3035/3035369.png" alt="Detetive" class="detective-icon">
-                <h1>🕵️‍♂️ Detetives</h1>
-                <p>Encontre as pistas e resolva os mistérios!</p>
+                <h1>🕵️‍♂️ Agência de Detetives</h1>
+                <p>Encontrem as pistas e resolvam as missões pela escola!</p>
             </div>
             
             <div class="login-box">
-                <h2>👥 Entre no jogo</h2>
+                <h2>👥 Registro da Equipe</h2>
                 
                 <div class="login-steps">
-                    <div class="step active" id="step1">
-                        <span class="step-number">1</span>
-                        <span>Criar Grupo</span>
-                    </div>
-                    <div class="step" id="step2">
-                        <span class="step-number">2</span>
-                        <span>Confirmar</span>
-                    </div>
+                    <div class="step active" id="step1"><span class="step-number">1</span><span>Criar Grupo</span></div>
+                    <div class="step" id="step2"><span class="step-number">2</span><span>Confirmar</span></div>
                 </div>
 
-                <!-- Passo 1 -->
+                <!-- Passo 1: Criar Grupo -->
                 <div id="stepCreateGroup" class="login-step active">
                     <div class="group-name-input">
-                        <label style="font-weight: bold; color: #555;">Nome do Grupo</label>
-                        <input type="text" id="groupNameInput" placeholder="Ex: Detetives 1" class="input-field">
-                        <small class="helper-text">Escolha um nome criativo!</small>
+                        <label style="font-weight: bold; color: #555;">Nome da Equipe</label>
+                        <input type="text" id="groupNameInput" placeholder="Ex: Os Investigadores" class="input-field">
                     </div>
 
                     <div class="members-container">
-                        <label style="font-weight: bold; color: #555; display: block; margin-bottom: 10px;">
-                            👤 Integrantes
-                        </label>
+                        <label style="font-weight: bold; color: #555; display: block; margin-bottom: 10px;">👤 Integrantes do Grupo</label>
                         <div id="membersList"></div>
-                        
                         <div class="members-actions">
-                            <button onclick="addMember()" class="btn-add-member">➕ Adicionar</button>
-                            <button onclick="removeLastMember()" class="btn-remove-member">➖ Remover</button>
+                            <button onclick="addMember()" class="btn-add-member">➕ Adicionar Pessoa</button>
+                            <button onclick="removeLastMember()" class="btn-remove-member">➖ Remover Pessoa</button>
                         </div>
-                        <small class="helper-text">Mínimo 2 integrantes</small>
                     </div>
 
-                    <button onclick="goToConfirm()" class="btn-primary">📝 Confirmar Grupo</button>
+                    <button onclick="goToConfirm()" class="btn-primary">📝 Avançar</button>
                     <div id="createGroupError" class="error"></div>
                 </div>
 
-                <!-- Passo 2 -->
+                <!-- Passo 2: Confirmar -->
                 <div id="stepConfirmGroup" class="login-step">
                     <div class="group-preview">
-                        <div class="label">👥 Grupo</div>
+                        <div class="label">👥 Nome da Equipe:</div>
                         <div class="value" id="previewGroupName"></div>
-                        <div style="margin-top: 10px;">
-                            <div class="label">👤 Integrantes</div>
+                        <div style="margin-top: 15px;">
+                            <div class="label">👤 Integrantes:</div>
                             <div id="previewMembers"></div>
                         </div>
                     </div>
-                    
-                    <div style="margin: 20px 0;">
-                        <p style="color: #666;">Digite seu nome para confirmar:</p>
-                        <input type="text" id="confirmMemberName" placeholder="Seu nome" class="input-field">
-                    </div>
 
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
                         <button onclick="goBackToCreate()" class="btn-back" style="flex: 1;">↩️ Voltar</button>
-                        <button onclick="confirmGroup()" class="btn-primary" style="flex: 2;">✅ Entrar</button>
+                        <button onclick="confirmGroup()" class="btn-primary" style="flex: 2;">🚀 Iniciar Caçada!</button>
                     </div>
                     <div id="confirmError" class="error"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Tela do Jogo -->
+        <!-- Tela do Jogo Principal -->
         <div id="gameScreen" class="screen">
             <div class="game-header">
                 <div class="group-info">
                     <span>👥 <strong id="displayGroup"></strong></span>
                     <span class="members-list">👤 <span id="displayMembers"></span></span>
                 </div>
-                <div class="timer">
-                    <span>⏱️ </span>
-                    <span id="timerDisplay">00:00</span>
-                </div>
-                <div class="progress">
-                    <span>📝 <span id="questionProgress">0</span>/<span id="totalQuestions">0</span></span>
-                </div>
+                <div class="timer">⏱️ <span id="timerDisplay">00:00</span></div>
+                <div class="progress">📝 <span id="questionProgress">0</span>/<span id="totalQuestions">0</span></div>
             </div>
 
             <div class="game-content">
                 <div class="question-container">
-                    <div class="question-number" id="questionNumber">Pergunta 1</div>
-                    <h2 id="questionTitle">🔍 Encontre a Pista!</h2>
-                    <p class="question-hint" id="questionHint"></p>
                     
-                    <div class="question-text" id="questionText">
-                        Carregando...
+                    <!-- FASE 1: BUSCA DO PAPEL NA ESCOLA -->
+                    <div id="phaseLocation" class="phase-section active">
+                        <div class="question-number" id="questionNumberLocation">Etapa 1</div>
+                        <h2>📍 Para onde devemos ir?</h2>
+                        <p style="color: #666; margin-top: 10px;">Corram juntos até este local e procurem o papel da missão:</p>
+                        
+                        <div class="question-text" id="locationText" style="border-left: 4px solid #f39c12; font-size: 1.4em; text-align: center; background: #fff8e1;">
+                            Carregando pista...
+                        </div>
+                        
+                        <button onclick="foundPaper()" class="btn-primary" style="margin-top: 15px; font-size: 1.2em; padding: 18px;">
+                            🗺️ Encontramos o Papel da Missão!
+                        </button>
                     </div>
-                    
-                    <div class="alternatives-container" id="alternativesContainer">
-                        <!-- Gerado dinamicamente -->
+
+                    <!-- FASE 2: RESOLVER O DESAFIO DO PAPEL -->
+                    <div id="phaseChallenge" class="phase-section">
+                        <div class="question-number" id="questionNumberChallenge">Etapa 1 - Desafio</div>
+                        <h2>🧮 O Cadeado Numérico</h2>
+                        
+                        <div class="question-text challenge-box" id="challengeText" style="border-left: 4px solid #27ae60;">
+                            Resolva a conta que está no papel.
+                        </div>
+
+                        <!-- Sistema de Dicas (Limitado) -->
+                        <div style="text-align: center; margin-bottom: 15px;">
+                            <button id="btnShowHint" onclick="useHint()" class="btn-outline" style="display: none;">
+                                💡 Pedir Dica (<span id="hintsRemaining">3</span> usos restantes)
+                            </button>
+                        </div>
+                        <p class="question-hint" id="questionHint" style="display: none;"></p>
+                        
+                        <div style="margin: 20px 0;">
+                            <input type="text" id="answerInput" placeholder="Qual o resultado?" class="input-field" style="font-size: 1.5em; max-width: 300px;">
+                        </div>
+                        
+                        <button onclick="checkAnswer()" class="btn-check-answer" id="btnCheckAnswer">✅ Tentar Abrir Cadeado</button>
+                        <div id="feedbackMessage" class="feedback-message"></div>
                     </div>
-                    
-                    <div class="answer-field" id="answerField">
-                        <input type="text" id="answerInput" placeholder="Digite sua resposta">
-                    </div>
-                    
-                    <button onclick="checkAnswer()" class="btn-check-answer" id="btnCheckAnswer" disabled>
-                        ✅ Verificar
-                    </button>
-                    
-                    <div id="feedbackMessage" class="feedback-message"></div>
+
                 </div>
             </div>
 
-            <div class="progress-challenges" id="progressDots">
-                <!-- Gerado dinamicamente -->
-            </div>
+            <!-- Bolinhas de Progresso -->
+            <div class="progress-challenges" id="progressDots"></div>
 
             <div class="action-buttons">
-                <button onclick="resetGame()" class="btn-danger">🔄 Reiniciar</button>
-                <button onclick="logout()" class="btn-outline">🚪 Sair</button>
+                <button onclick="resetGame()" class="btn-danger">🔄 Abandonar Missão (Reiniciar)</button>
             </div>
         </div>
 
@@ -851,14 +133,14 @@
         <div id="winScreen" class="screen">
             <div class="win-content">
                 <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" alt="Troféu" class="trophy-icon">
-                <h1>🏆 Parabéns!</h1>
-                <h2>Vocês encontraram todas as pistas!</h2>
+                <h1>🏆 Missão Cumprida!</h1>
+                <h2>Vocês desvendaram todos os mistérios da escola!</h2>
                 <div class="win-details">
-                    <p>⏱️ Tempo: <span id="winTime">00:00</span></p>
-                    <p>👥 Grupo: <span id="winGroup"></span></p>
-                    <p>👤 Integrantes: <span id="winMembers"></span></p>
+                    <p>⏱️ Tempo Final: <span id="winTime">00:00</span></p>
+                    <p>👥 Equipe: <span id="winGroup"></span></p>
+                    <p>👤 Detetives: <span id="winMembers"></span></p>
                 </div>
-                <button onclick="resetGame()" class="btn-primary">🔄 Jogar Novamente</button>
+                <button onclick="resetGame()" class="btn-primary">🔄 Retornar ao Início</button>
             </div>
         </div>
     </div>
