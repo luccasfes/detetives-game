@@ -8,6 +8,11 @@ let gameStarted = false;
 let hintsLeft = 3;
 let selectedAlternative = null;
 let isGameOver = false;
+let errorsPerQuestion = 0;
+let blockedUntil = 0;
+let alternativeOrder = [];
+let isProcessing = false; // Evita múltiplos cliques
+let blockCountdownInterval = null; // 🔥 NOVO: controla o contador em tempo real do bloqueio
 
 // ============ CARREGAR DADOS ============
 function loadQuestions() {
@@ -76,7 +81,6 @@ function goToConfirm() {
                          existingMembers.every(m => members.includes(m));
             if (!match) return errorDiv.textContent = '❌ Esta equipe já existe com outros integrantes!';
             
-            // Se o grupo já completou, mostra mensagem
             if (data.completed) {
                 errorDiv.textContent = '🏆 Esta equipe já completou a caçada! Parabéns!';
                 return;
@@ -112,9 +116,7 @@ function confirmGroup() {
     database.ref('groups/' + currentGroup).once('value').then((snapshot) => {
         const data = snapshot.exists() ? snapshot.val() : null;
         
-        // Verifica se já completou
         if (data && data.completed) {
-            // Recupera os dados da vitória
             currentMembers = data.members || [];
             seconds = data.finalTime || 0;
             const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -150,6 +152,8 @@ function startGame() {
     database.ref('groups/' + currentGroup).update({ started: true });
     gameStarted = true;
     isGameOver = false;
+    errorsPerQuestion = 0;
+    isProcessing = false;
     switchScreen('gameScreen');
     document.getElementById('displayGroup').textContent = currentGroup;
     document.getElementById('displayMembers').textContent = currentMembers.join(', ');
@@ -166,6 +170,26 @@ function showPhaseLocation() {
         return;
     }
     
+    // 🔥 RESETA TUDO para a nova questão
+    errorsPerQuestion = 0;
+    blockedUntil = 0;
+    isProcessing = false;
+    selectedAlternative = null;
+    alternativeOrder = [];
+    stopBlockCountdown(); // 🔥 garante que nenhum contador de bloqueio antigo continue rodando
+    
+    // Reseta botões
+    document.querySelectorAll('.alt-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.disabled = false;
+    });
+    document.getElementById('selectedAlternative').textContent = '';
+    document.getElementById('feedbackMessage').style.display = 'none';
+    document.getElementById('btnCheckAnswer').disabled = false;
+    document.getElementById('answerInput').disabled = false;
+    document.getElementById('answerInput').value = '';
+    document.getElementById('answerInput').style.borderColor = '#ddd';
+    
     const question = allQuestions[currentQuestionIndex];
     document.getElementById('questionProgress').textContent = currentQuestionIndex + 1;
     
@@ -178,54 +202,79 @@ function showPhaseLocation() {
     renderProgressDots();
 }
 
+// ============ EMBARALHAR ALTERNATIVAS ============
+function shuffleAlternatives(alternatives) {
+    const indices = alternatives.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
+}
+
 // ============ FASE 2: RESOLVENDO O DESAFIO ============
 function foundPaper() {
+    if (isProcessing) return;
+    if (currentQuestionIndex >= allQuestions.length) {
+        winGame();
+        return;
+    }
+    
     const question = allQuestions[currentQuestionIndex];
     
     document.getElementById('phaseLocation').classList.remove('active');
     document.getElementById('phaseChallenge').classList.add('active');
     
     document.getElementById('questionNumberChallenge').textContent = `Desafio da Etapa ${currentQuestionIndex + 1}`;
-    
-    // ⚠️ O aluno NUNCA vê a pergunta - só a instrução genérica
     document.getElementById('challengeText').textContent = "🔐 Digite a resposta que vocês encontraram na pista física:";
     
     // Resetar seleção
     selectedAlternative = null;
     document.getElementById('selectedAlternative').textContent = '';
-    document.querySelectorAll('.alt-btn').forEach(btn => btn.classList.remove('selected'));
+    document.querySelectorAll('.alt-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.disabled = false;
+    });
     
-    // Mostrar input correto conforme o tipo
     const descriptiveDiv = document.getElementById('descriptiveInput');
     const multipleDiv = document.getElementById('multipleChoiceInput');
     const answerInput = document.getElementById('answerInput');
+    answerInput.value = '';
+    answerInput.disabled = false;
+    answerInput.style.borderColor = '#ddd';
     
     if (question.type === 'multipla') {
         descriptiveDiv.style.display = 'none';
         multipleDiv.style.display = 'block';
+        
         const letters = ['A', 'B', 'C', 'D'];
+        const shuffledIndices = shuffleAlternatives(question.alternatives);
+        alternativeOrder = shuffledIndices;
+        
         const buttons = document.querySelectorAll('.alt-btn');
         buttons.forEach((btn, index) => {
-            if (index < question.alternatives.length) {
-                btn.textContent = `${letters[index]}) ${question.alternatives[index]}`;
+            if (index < shuffledIndices.length) {
+                const originalIndex = shuffledIndices[index];
+                btn.textContent = `${letters[index]}) ${question.alternatives[originalIndex]}`;
+                btn.dataset.originalIndex = originalIndex;
+                btn.dataset.letter = letters[index];
                 btn.style.display = 'inline-block';
+                btn.disabled = false;
             } else {
                 btn.style.display = 'none';
             }
         });
-        answerInput.value = '';
     } else {
         descriptiveDiv.style.display = 'block';
         multipleDiv.style.display = 'none';
-        answerInput.value = '';
-        answerInput.style.borderColor = '#ddd';
         answerInput.focus();
     }
     
     document.getElementById('btnCheckAnswer').disabled = false;
     document.getElementById('feedbackMessage').style.display = 'none';
+    document.getElementById('feedbackMessage').className = 'feedback-message';
     
-    // Dicas do professor
+    // Dicas
     const hintElement = document.getElementById('questionHint');
     const hintButton = document.getElementById('btnShowHint');
     if (question.hint) {
@@ -239,8 +288,15 @@ function foundPaper() {
     }
 }
 
-// ============ SELECIONAR ALTERNATIVA (Múltipla Escolha) ============
+// ============ SELECIONAR ALTERNATIVA ============
 function selectAlternative(letter) {
+    if (isProcessing) return;
+    if (Date.now() < blockedUntil) {
+        const remaining = Math.ceil((blockedUntil - Date.now()) / 1000);
+        showFeedback(`⏳ Aguarde ${remaining} segundos antes de tentar novamente!`, 'error');
+        return;
+    }
+    
     selectedAlternative = letter;
     document.querySelectorAll('.alt-btn').forEach(btn => {
         btn.classList.toggle('selected', btn.dataset.letter === letter);
@@ -249,29 +305,80 @@ function selectAlternative(letter) {
     document.getElementById('answerInput').value = letter;
 }
 
-// ============ SISTEMA DE DICAS ============
+// ============ DICAS ============
 function useHint() {
     if (hintsLeft > 0) {
         hintsLeft--;
         document.getElementById('hintsRemaining').textContent = hintsLeft;
         document.getElementById('questionHint').style.display = 'block';
         document.getElementById('btnShowHint').style.display = 'none';
-        
         database.ref('groups/' + currentGroup).update({ hintsUsed: (3 - hintsLeft) });
     } else {
         showFeedback('❌ A equipe esgotou todas as 3 dicas disponíveis!', 'error');
     }
 }
 
+// ============ BLOQUEIO EM TEMPO REAL ============
+// 🔥 NOVO: mostra o tempo de bloqueio contando ao vivo (a cada segundo) e
+// reabilita automaticamente os botões/alternativas quando o tempo acabar,
+// sem depender de o aluno clicar em nada.
+function stopBlockCountdown() {
+    if (blockCountdownInterval) {
+        clearInterval(blockCountdownInterval);
+        blockCountdownInterval = null;
+    }
+}
+
+function startBlockCountdown(blockSeconds) {
+    stopBlockCountdown();
+
+    let remaining = blockSeconds;
+    showFeedback(`⛔ Muitas tentativas erradas! Bloqueado por ${remaining} segundos.`, 'error');
+
+    blockCountdownInterval = setInterval(() => {
+        remaining--;
+
+        if (remaining > 0) {
+            showFeedback(`⛔ Muitas tentativas erradas! Bloqueado por ${remaining} segundos.`, 'error');
+        } else {
+            stopBlockCountdown();
+            blockedUntil = 0;
+
+            // Reabilita tudo automaticamente
+            document.querySelectorAll('.alt-btn').forEach(b => b.disabled = false);
+            document.getElementById('btnCheckAnswer').disabled = false;
+            document.getElementById('answerInput').disabled = false;
+            document.getElementById('feedbackMessage').style.display = 'none';
+
+            const question = allQuestions[currentQuestionIndex];
+            if (question && question.type !== 'multipla') {
+                document.getElementById('answerInput').focus();
+            }
+        }
+    }, 1000);
+}
+
 // ============ VERIFICAR RESPOSTA ============
 function checkAnswer() {
+    // 🔥 IMPEDE PROCESSAMENTO DUPLO
+    if (isProcessing) return;
     if (!gameStarted || isGameOver) return;
+    if (currentQuestionIndex >= allQuestions.length) {
+        winGame();
+        return;
+    }
+    
+    if (Date.now() < blockedUntil) {
+        const remaining = Math.ceil((blockedUntil - Date.now()) / 1000);
+        showFeedback(`⏳ Aguarde ${remaining} segundos antes de tentar novamente!`, 'error');
+        return;
+    }
     
     const question = allQuestions[currentQuestionIndex];
     const userAnswer = document.getElementById('answerInput').value.trim();
     const btn = document.getElementById('btnCheckAnswer');
     
-    // Verifica se resposta foi fornecida
+    // Verifica resposta
     if (question.type === 'multipla') {
         if (!selectedAlternative) {
             return showFeedback('❌ Selecione uma alternativa clicando nela!', 'error');
@@ -282,49 +389,119 @@ function checkAnswer() {
         }
     }
     
+    // 🔥 MARCA COMO PROCESSANDO
+    isProcessing = true;
     btn.disabled = true;
+    
     let isCorrect = false;
     
     if (question.type === 'multipla') {
-        isCorrect = selectedAlternative === question.correctAnswer;
+        const btn = document.querySelector(`.alt-btn[data-letter="${selectedAlternative}"]`);
+        if (btn) {
+            const originalIndex = parseInt(btn.dataset.originalIndex);
+            const letters = ['A', 'B', 'C', 'D'];
+            const selectedLetter = letters[originalIndex];
+            isCorrect = selectedLetter === question.correctAnswer;
+        }
     } else {
         isCorrect = userAnswer.toLowerCase().trim() === question.answer.toLowerCase().trim();
     }
     
     if (isCorrect) {
+        // ✅ ACERTOU
+        stopBlockCountdown();
         document.getElementById('answerInput').style.borderColor = '#27ae60';
         showFeedback(`✅ Cadeado Aberto! Código aceito com sucesso! 🎉`, 'success');
         
-        currentQuestionIndex++;
+        // Reseta tudo
+        blockedUntil = 0;
+        errorsPerQuestion = 0;
+        selectedAlternative = null;
+        document.querySelectorAll('.alt-btn').forEach(b => b.classList.remove('selected'));
+        
+        // 🔥 ATUALIZA O BANCO COM A PRÓXIMA QUESTÃO
+        const nextIndex = currentQuestionIndex + 1;
         database.ref('groups/' + currentGroup).update({ 
-            currentQuestion: currentQuestionIndex,
-            errors: 0
+            currentQuestion: nextIndex,
+            errors: 0,
+            time: seconds
         });
         
-        // Verifica se completou TODAS as etapas
+        // 🔥 ATUALIZA O ÍNDICE LOCAL
+        currentQuestionIndex = nextIndex;
+        
+        // Verifica se terminou
         if (currentQuestionIndex >= allQuestions.length) {
             setTimeout(() => {
+                isProcessing = false;
                 winGame();
             }, 1500);
         } else {
             setTimeout(() => {
+                isProcessing = false;
                 showPhaseLocation();
             }, 1500);
         }
     } else {
+        // ❌ ERROU
+        errorsPerQuestion++;
         document.getElementById('answerInput').style.borderColor = '#e74c3c';
         
         database.ref('groups/' + currentGroup + '/errors').transaction((current) => {
             return (current || 0) + 1;
         });
         
-        showFeedback(`❌ Cadeado Travado. Verifiquem a pista e tentem novamente.`, 'error');
-        setTimeout(() => { 
-            btn.disabled = false;
-            if (question.type === 'multipla') {
-                // Mantém a seleção
-            } else {
-                document.getElementById('answerInput').focus();
+        let errorMessage = '❌ Cadeado Travado. Verifiquem a pista e tentem novamente.';
+        let willBlock = false;
+        
+        // Estratégias anti-chute
+        if (errorsPerQuestion >= 3) {
+            willBlock = true;
+            const blockTime = Math.min(errorsPerQuestion * 3, 15);
+            blockedUntil = Date.now() + (blockTime * 1000);
+            document.querySelectorAll('.alt-btn').forEach(b => b.disabled = true);
+            document.getElementById('btnCheckAnswer').disabled = true;
+            document.getElementById('answerInput').disabled = true;
+            // 🔥 dispara o contador em tempo real, que reabilita tudo sozinho ao fim
+            startBlockCountdown(blockTime);
+        } else if (errorsPerQuestion === 2) {
+            errorMessage = '⚠️ Cuidado! Essa já é a segunda tentativa errada. Releiam a pista com atenção!';
+        } else if (errorsPerQuestion === 1 && question.type === 'multipla') {
+            // Re-embaralha
+            const letters = ['A', 'B', 'C', 'D'];
+            const shuffledIndices = shuffleAlternatives(question.alternatives);
+            alternativeOrder = shuffledIndices;
+            
+            const buttons = document.querySelectorAll('.alt-btn');
+            buttons.forEach((btn, index) => {
+                if (index < shuffledIndices.length) {
+                    const originalIndex = shuffledIndices[index];
+                    btn.textContent = `${letters[index]}) ${question.alternatives[originalIndex]}`;
+                    btn.dataset.originalIndex = originalIndex;
+                    btn.dataset.letter = letters[index];
+                }
+            });
+            
+            selectedAlternative = null;
+            document.querySelectorAll('.alt-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('selectedAlternative').textContent = '🔄 Alternativas reorganizadas!';
+            errorMessage = '🔄 As alternativas foram reorganizadas. Prestem atenção na pista!';
+        }
+        
+        if (!willBlock) {
+            showFeedback(errorMessage, 'error');
+        }
+        
+        setTimeout(() => {
+            isProcessing = false;
+            // Só reabilita aqui se NÃO estiver em bloqueio -
+            // se estiver bloqueado, quem cuida de reabilitar é o startBlockCountdown()
+            if (!willBlock) {
+                btn.disabled = false;
+                document.querySelectorAll('.alt-btn').forEach(b => b.disabled = false);
+                if (question.type !== 'multipla') {
+                    document.getElementById('answerInput').focus();
+                }
             }
         }, 1500);
     }
@@ -337,7 +514,7 @@ function showFeedback(message, type) {
     div.style.display = 'block';
 }
 
-// ============ UTILITÁRIOS ============
+// ============ PROGRESSO ============
 function renderProgressDots() {
     const container = document.getElementById('progressDots');
     container.innerHTML = '';
@@ -349,6 +526,7 @@ function renderProgressDots() {
     }
 }
 
+// ============ TIMER ============
 function startTimer() {
     if (timerInterval) return;
     timerInterval = setInterval(() => {
@@ -362,22 +540,22 @@ function startTimer() {
     }, 1000);
 }
 
+// ============ VITÓRIA ============
 function winGame() {
-    // Para o timer
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
     }
+    stopBlockCountdown();
     
-    // Marca como completo no banco
     database.ref('groups/' + currentGroup).update({ 
         completed: true, 
         finalTime: seconds 
     });
     
-    // Mostra tela de vitória
     isGameOver = true;
     gameStarted = false;
+    isProcessing = false;
     
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
@@ -388,8 +566,8 @@ function winGame() {
     switchScreen('winScreen');
 }
 
+// ============ RESET ============
 function resetGame() {
-    // Se já completou, não pede confirmação
     if (isGameOver) {
         cleanupAndReset();
         return;
@@ -407,13 +585,12 @@ function resetGame() {
 }
 
 function cleanupAndReset() {
-    // Limpa listeners e timers
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
     }
+    stopBlockCountdown();
     
-    // Reseta variáveis
     currentGroup = null;
     currentMembers = [];
     currentQuestionIndex = 0;
@@ -422,8 +599,11 @@ function cleanupAndReset() {
     seconds = 0;
     hintsLeft = 3;
     selectedAlternative = null;
+    errorsPerQuestion = 0;
+    blockedUntil = 0;
+    alternativeOrder = [];
+    isProcessing = false;
     
-    // Reseta UI
     document.getElementById('timerDisplay').textContent = '00:00';
     document.getElementById('groupNameInput').value = '';
     document.getElementById('membersList').innerHTML = '';
@@ -431,14 +611,16 @@ function cleanupAndReset() {
     document.getElementById('feedbackMessage').className = 'feedback-message';
     document.getElementById('phaseChallenge').classList.remove('active');
     document.getElementById('phaseLocation').classList.add('active');
-    document.querySelectorAll('.alt-btn').forEach(btn => btn.classList.remove('selected'));
+    document.querySelectorAll('.alt-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.disabled = false;
+    });
     document.getElementById('selectedAlternative').textContent = '';
+    document.getElementById('answerInput').value = '';
+    document.getElementById('answerInput').disabled = false;
     
-    // Adiciona membros padrão
     addMember();
     addMember();
-    
-    // Volta para tela de login
     switchScreen('loginScreen');
 }
 
@@ -464,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (document.getElementById('stepConfirmGroup').classList.contains('active')) {
                 confirmGroup();
             } else if (document.getElementById('phaseChallenge').classList.contains('active')) {
-                if (!document.getElementById('btnCheckAnswer').disabled) {
+                if (!document.getElementById('btnCheckAnswer').disabled && !isProcessing) {
                     checkAnswer();
                 }
             }
@@ -472,7 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('answerInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !document.getElementById('btnCheckAnswer').disabled) {
+        if (e.key === 'Enter' && !document.getElementById('btnCheckAnswer').disabled && !isProcessing) {
             checkAnswer();
         }
     });
