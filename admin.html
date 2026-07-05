@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👑 Admin - Jogo dos Detetives</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container admin-container">
+        <!-- Tela de Login Admin -->
+        <div id="adminLogin" class="screen active">
+            <div class="detective-header">
+                <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Admin" class="detective-icon">
+                <h1>👑 Painel Administrativo</h1>
+                <p>Gerencie as pistas do jogo</p>
+            </div>
+            
+            <div class="login-box">
+                <h2>Login Administrativo</h2>
+                <input type="password" id="adminPassword" placeholder="Senha do Administrador" class="input-field">
+                <button onclick="adminLogin()" class="btn-primary">🔐 Entrar</button>
+                <div id="adminError" class="error"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Admin -->
+        <div id="adminDashboard" class="screen">
+            <div class="admin-header">
+                <h1>👑 Painel de Controle</h1>
+                <button onclick="adminLogout()" class="btn-outline">🚪 Sair</button>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>📋 Total de Pistas</h3>
+                    <p id="totalCluesAdmin">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>👥 Grupos Ativos</h3>
+                    <p id="activeGroups">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>🏆 Grupos Vencedores</h3>
+                    <p id="winnerGroups">0</p>
+                </div>
+            </div>
+
+            <!-- Gerenciar Pistas -->
+            <div class="admin-section">
+                <h2>🔍 Gerenciar Pistas</h2>
+                
+                <!-- Formulário para adicionar pista -->
+                <div class="clue-form">
+                    <h3>➕ Adicionar Nova Pista</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Código da Pista</label>
+                            <input type="text" id="newClueCode" placeholder="Ex: PISTA01" class="input-field">
+                        </div>
+                        <div class="form-group">
+                            <label>Nome da Pista</label>
+                            <input type="text" id="newClueName" placeholder="Ex: Pista da Biblioteca" class="input-field">
+                        </div>
+                        <div class="form-group">
+                            <label>Dica/Localização</label>
+                            <input type="text" id="newClueHint" placeholder="Ex: Procure na estante de livros" class="input-field">
+                        </div>
+                        <div class="form-group">
+                            <label>Nível de Dificuldade</label>
+                            <select id="newClueDifficulty" class="input-field">
+                                <option value="Fácil">⭐ Fácil</option>
+                                <option value="Médio" selected>⭐⭐ Médio</option>
+                                <option value="Difícil">⭐⭐⭐ Difícil</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="addClue()" class="btn-primary">➕ Adicionar Pista</button>
+                    <div id="addClueMessage" class="clue-message"></div>
+                </div>
+
+                <!-- Lista de pistas -->
+                <div class="clues-list-admin">
+                    <h3>📋 Pistas Cadastradas</h3>
+                    <div id="cluesListAdmin" class="clues-grid">
+                        <p class="empty-message">Nenhuma pista cadastrada ainda...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grupos e Ranking -->
+            <div class="admin-section">
+                <h2>👥 Grupos Participantes</h2>
+                <div id="groupsList" class="groups-grid">
+                    <p class="empty-message">Nenhum grupo ativo no momento...</p>
+                </div>
+            </div>
+
+            <!-- Controles Rápidos -->
+            <div class="admin-section">
+                <h2>⚡ Controles Rápidos</h2>
+                <div class="quick-actions">
+                    <button onclick="resetAllGames()" class="btn-danger">🔄 Resetar Todos os Jogos</button>
+                    <button onclick="exportData()" class="btn-secondary">📥 Exportar Dados</button>
+                    <button onclick="importData()" class="btn-secondary">📤 Importar Dados</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin-script.js"></script>
+</body>
+</html>
