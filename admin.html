@@ -14,7 +14,7 @@
         <div id="adminLogin" class="screen active">
             <div class="detective-header">
                 <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Admin" class="detective-icon">
-                <h1>👑 Controle da Investiagora Chefe</h1>
+                <h1>👑 Controle da Investiagora Chefe🕵️‍♀️</h1>
                 <p>Acesse para organizar a caça ao tesouro</p>
             </div>
             <div class="login-box">
@@ -54,6 +54,7 @@
             <!-- Abas -->
             <div class="admin-tabs">
                 <button class="admin-tab active" onclick="switchTab('ranking')">🏆 Monitorar Grupos</button>
+                <button class="admin-tab" onclick="switchTab('analytics')">📊 Análise de Aprendizagem</button>
                 <button class="admin-tab" onclick="switchTab('questions')">📝 Criar Missões</button>
             </div>
 
@@ -71,6 +72,25 @@
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button onclick="resetAllGames()" class="btn-danger">🔄 Apagar Todos os Grupos</button>
                         <button onclick="loadAdminData()" class="btn-primary" style="width: auto; padding: 10px 20px;">🔄 Atualizar Agora</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA: Análise de Aprendizagem -->
+            <div id="tabAnalytics" class="tab-content">
+                <div class="admin-section">
+                    <h2>🎯 Etapas Mais Difíceis</h2>
+                    <p class="helper-text" style="margin-bottom: 15px;">Ranking das etapas com mais erros somando todos os grupos. Use isso para ver onde os alunos mais travam.</p>
+                    <div id="hardestStagesList">
+                        <p class="empty-message">📭 Ainda não há dados suficientes. Assim que os grupos começarem a jogar, o ranking aparece aqui.</p>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h2>📋 Detalhes por Etapa</h2>
+                    <p class="helper-text" style="margin-bottom: 15px;">Erros totais, tempo médio e o grupo mais rápido em cada etapa.</p>
+                    <div id="questionAnalyticsList">
+                        <p class="empty-message">📭 Nenhum dado registrado ainda.</p>
                     </div>
                 </div>
             </div>

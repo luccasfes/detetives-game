@@ -13,6 +13,7 @@ let blockedUntil = 0;
 let alternativeOrder = [];
 let isProcessing = false; // Evita múltiplos cliques
 let blockCountdownInterval = null; // 🔥 NOVO: controla o contador em tempo real do bloqueio
+let stageStartSeconds = 0; // 🔥 NOVO: marca em que segundo do cronômetro a etapa atual começou (para analytics do professor)
 
 // ============ CARREGAR DADOS ============
 function loadQuestions() {
@@ -176,6 +177,7 @@ function showPhaseLocation() {
     isProcessing = false;
     selectedAlternative = null;
     alternativeOrder = [];
+    stageStartSeconds = seconds; // 🔥 marca o início da etapa (para medir quanto tempo o grupo levou nela)
     stopBlockCountdown(); // 🔥 garante que nenhum contador de bloqueio antigo continue rodando
     
     // Reseta botões
@@ -415,17 +417,27 @@ function checkAnswer() {
         
         // Reseta tudo
         blockedUntil = 0;
-        errorsPerQuestion = 0;
         selectedAlternative = null;
         document.querySelectorAll('.alt-btn').forEach(b => b.classList.remove('selected'));
         
-        // 🔥 ATUALIZA O BANCO COM A PRÓXIMA QUESTÃO
+        // 🔥 ATUALIZA O BANCO COM A PRÓXIMA QUESTÃO + ESTATÍSTICAS DA ETAPA (numa única escrita)
+        // Importante: NÃO zeramos "errors" aqui — esse campo é o total acumulado da caçada inteira
+        // e já é incrementado à parte (na transaction lá embaixo, quando o grupo erra).
         const nextIndex = currentQuestionIndex + 1;
-        database.ref('groups/' + currentGroup).update({ 
+        const timeSpentOnStage = Math.max(0, seconds - stageStartSeconds);
+        const updates = {
             currentQuestion: nextIndex,
-            errors: 0,
             time: seconds
-        });
+        };
+        if (question.id) {
+            updates[`questionStats/${question.id}/order`] = question.order || (currentQuestionIndex + 1);
+            updates[`questionStats/${question.id}/errors`] = errorsPerQuestion;
+            updates[`questionStats/${question.id}/timeSpent`] = timeSpentOnStage;
+        }
+        database.ref('groups/' + currentGroup).update(updates);
+        
+        // Zera os erros locais desta etapa (não o total do grupo) para a próxima pergunta
+        errorsPerQuestion = 0;
         
         // 🔥 ATUALIZA O ÍNDICE LOCAL
         currentQuestionIndex = nextIndex;
@@ -603,6 +615,7 @@ function cleanupAndReset() {
     blockedUntil = 0;
     alternativeOrder = [];
     isProcessing = false;
+    stageStartSeconds = 0;
     
     document.getElementById('timerDisplay').textContent = '00:00';
     document.getElementById('groupNameInput').value = '';

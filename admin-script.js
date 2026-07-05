@@ -30,7 +30,8 @@ function switchTab(tab) {
     
     const tabs = { 
         'ranking': { index: 0, id: 'tabRanking' }, 
-        'questions': { index: 1, id: 'tabQuestions' } 
+        'analytics': { index: 1, id: 'tabAnalytics' },
+        'questions': { index: 2, id: 'tabQuestions' } 
     };
     document.querySelectorAll('.admin-tab')[tabs[tab].index].classList.add('active');
     document.getElementById(tabs[tab].id).classList.add('active');
@@ -57,6 +58,7 @@ function loadAdminData() {
             allGroups = [];
         }
         renderGroupsListRanking();
+        renderQuestionAnalytics();
         updateStats();
     });
 
@@ -69,6 +71,7 @@ function loadAdminData() {
             allQuestions = [];
         }
         renderQuestionsList();
+        renderQuestionAnalytics();
         updateStats();
     });
 }
@@ -304,6 +307,118 @@ function renderGroupsListRanking() {
             </div>
         `;
     }).join('');
+}
+
+// ============ ANÁLISE DE APRENDIZAGEM (por etapa) ============
+// 🔥 NOVO: cruza allQuestions com o questionStats gravado por cada grupo
+// (errors e timeSpent por etapa) para mostrar onde os alunos mais erram
+// e quem resolveu mais rápido.
+function computeQuestionAnalytics() {
+    return allQuestions.map(q => {
+        const statsEntries = allGroups
+            .map(g => ({ group: g.name, stat: g.questionStats && g.questionStats[q.id] }))
+            .filter(e => e.stat);
+
+        const totalAttempts = statsEntries.length;
+        const totalErrors = statsEntries.reduce((sum, e) => sum + (e.stat.errors || 0), 0);
+        const avgErrors = totalAttempts > 0 ? totalErrors / totalAttempts : 0;
+
+        let fastest = null, slowest = null, totalTime = 0;
+        statsEntries.forEach(e => {
+            const t = e.stat.timeSpent || 0;
+            totalTime += t;
+            if (!fastest || t < fastest.time) fastest = { time: t, group: e.group };
+            if (!slowest || t > slowest.time) slowest = { time: t, group: e.group };
+        });
+        const avgTime = totalAttempts > 0 ? totalTime / totalAttempts : 0;
+
+        return { question: q, totalAttempts, totalErrors, avgErrors, avgTime, fastest, slowest };
+    });
+}
+
+function formatMMSS(totalSeconds) {
+    const s = Math.round(totalSeconds || 0);
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+}
+
+function renderQuestionAnalytics() {
+    const hardestContainer = document.getElementById('hardestStagesList');
+    const detailContainer = document.getElementById('questionAnalyticsList');
+    if (!hardestContainer || !detailContainer) return;
+
+    if (allQuestions.length === 0) {
+        hardestContainer.innerHTML = '<p class="empty-message">📭 Cadastre etapas para ver a análise.</p>';
+        detailContainer.innerHTML = '<p class="empty-message">📭 Cadastre etapas para ver a análise.</p>';
+        return;
+    }
+
+    const analytics = computeQuestionAnalytics();
+    const withData = analytics.filter(a => a.totalAttempts > 0);
+
+    if (withData.length === 0) {
+        hardestContainer.innerHTML = '<p class="empty-message">📭 Ainda não há dados suficientes. Assim que os grupos começarem a jogar, o ranking aparece aqui.</p>';
+        detailContainer.innerHTML = '<p class="empty-message">📭 Nenhum dado registrado ainda.</p>';
+        return;
+    }
+
+    // Ranking das etapas com mais erros somando todos os grupos
+    const ranked = withData.filter(a => a.totalErrors > 0).sort((a, b) => b.totalErrors - a.totalErrors);
+
+    if (ranked.length === 0) {
+        hardestContainer.innerHTML = '<p class="empty-message">🎉 Nenhum erro registrado até agora — os grupos estão mandando bem!</p>';
+    } else {
+        const medalColors = ['#a8362a', '#b3862f', '#8f6a22'];
+        hardestContainer.innerHTML = ranked.slice(0, 10).map((a, i) => {
+            const color = i < 3 ? medalColors[i] : '#6b5730';
+            const locationPreview = (a.question.location || '').slice(0, 70) + ((a.question.location || '').length > 70 ? '…' : '');
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px; padding: 12px 16px; margin-bottom: 8px; background:#fffdf7; border-radius: 8px; border-left: 5px solid ${color};">
+                    <div>
+                        <strong style="color:#1b2436;">#${i + 1} — Etapa ${a.question.order}</strong>
+                        <div style="font-size:0.85em; color:#6b5730; margin-top:2px;">${locationPreview}</div>
+                    </div>
+                    <div style="text-align:right; white-space: nowrap;">
+                        <div style="font-weight:800; color:${color};">${a.totalErrors} erro${a.totalErrors === 1 ? '' : 's'}</div>
+                        <div style="font-size:0.8em; color:#6b5730;">${a.avgErrors.toFixed(1)} por grupo</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Detalhe de cada etapa, na ordem da caçada
+    detailContainer.innerHTML = withData
+        .sort((a, b) => (a.question.order || 0) - (b.question.order || 0))
+        .map(a => `
+            <div class="question-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 10px;">
+                    <span class="question-badge">Etapa #${a.question.order}</span>
+                    <span style="font-size:0.85em; color:#6b5730; font-weight:700;">${a.totalAttempts} grupo${a.totalAttempts === 1 ? '' : 's'} concluíram</span>
+                </div>
+                <div style="font-size:0.95em; color:#1b2436; margin-bottom: 12px;">📍 ${a.question.location}</div>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 10px;">
+                    <div style="background:#f7e2df; padding: 10px 14px; border-radius: 8px;">
+                        <div style="font-size:0.78em; color:#a8362a; font-weight:800; text-transform:uppercase;">❌ Total de Erros</div>
+                        <div style="font-size:1.3em; font-weight:800; color:#a8362a;">${a.totalErrors}</div>
+                    </div>
+                    <div style="background:#f2e8d3; padding: 10px 14px; border-radius: 8px;">
+                        <div style="font-size:0.78em; color:#8f6a22; font-weight:800; text-transform:uppercase;">📊 Média de Erros</div>
+                        <div style="font-size:1.3em; font-weight:800; color:#8f6a22;">${a.avgErrors.toFixed(1)}</div>
+                    </div>
+                    <div style="background:#e3f3ea; padding: 10px 14px; border-radius: 8px;">
+                        <div style="font-size:0.78em; color:#2e6b52; font-weight:800; text-transform:uppercase;">⏱️ Tempo Médio</div>
+                        <div style="font-size:1.3em; font-weight:800; color:#2e6b52;">${formatMMSS(a.avgTime)}</div>
+                    </div>
+                    <div style="background:#e3f3ea; padding: 10px 14px; border-radius: 8px;">
+                        <div style="font-size:0.78em; color:#2e6b52; font-weight:800; text-transform:uppercase;">🏆 Grupo Mais Rápido</div>
+                        <div style="font-size:1.1em; font-weight:800; color:#2e6b52;">${a.fastest ? formatMMSS(a.fastest.time) : '—'}</div>
+                        <div style="font-size:0.8em; color:#2e6b52;">${a.fastest ? a.fastest.group : ''}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
 }
 
 // ============ ESTATÍSTICAS EM TEMPO REAL ============
