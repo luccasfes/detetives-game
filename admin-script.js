@@ -544,6 +544,70 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleQuestionType();
 });
 
+// ============ IMPORTAÇÃO EM LOTE (IA) ============
+function importQuestionsAI() {
+    const aiText = document.getElementById('aiImportText').value.trim();
+    const msg = document.getElementById('importAiMessage');
+
+    if (!aiText) {
+        msg.textContent = '❌ Cole o código gerado pela IA primeiro!';
+        msg.className = 'clue-message error';
+        return;
+    }
+
+    try {
+        // Remove marcações de código (como ```json e ```) que a IA costuma colocar
+        const cleanText = aiText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsedData = JSON.parse(cleanText);
+        
+        if (!Array.isArray(parsedData)) {
+            throw new Error("O formato precisa ser uma lista (array) de missões.");
+        }
+
+        let promises = [];
+
+        parsedData.forEach(q => {
+            const order = parseInt(q.order);
+            const targetId = 'Q' + String(order).padStart(3, '0');
+            
+            let questionData = {
+                id: targetId,
+                order: order,
+                type: q.type,
+                location: q.location,
+                challenge: q.challenge,
+                hint: q.hint || '',
+                createdAt: Date.now()
+            };
+
+            if (q.type === 'multipla') {
+                questionData.alternatives = q.alternatives;
+                questionData.correctAnswer = q.correctAnswer;
+                const letters = ['A', 'B', 'C', 'D'];
+                questionData.answer = q.alternatives[letters.indexOf(q.correctAnswer)];
+            } else {
+                questionData.answer = String(q.answer).toLowerCase().trim();
+            }
+
+            promises.push(database.ref('questions/' + targetId).set(questionData));
+        });
+
+        Promise.all(promises).then(() => {
+            msg.textContent = `✅ ${parsedData.length} missões importadas com sucesso!`;
+            msg.className = 'clue-message success';
+            document.getElementById('aiImportText').value = ''; // Limpa a caixa
+            loadAdminData(); // Atualiza a lista abaixo
+        }).catch(err => {
+            msg.textContent = '❌ Erro ao salvar no banco: ' + err.message;
+            msg.className = 'clue-message error';
+        });
+
+    } catch (error) {
+        msg.textContent = '❌ Erro! Certifique-se de colar exatamente o JSON gerado. Detalhe: ' + error.message;
+        msg.className = 'clue-message error';
+    }
+}
+
 // ============ EXPORTAR ============
 window.adminLogin = adminLogin;
 window.adminLogout = adminLogout;

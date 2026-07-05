@@ -71,7 +71,8 @@
                     <h2>⚡ Controles Rápidos</h2>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button onclick="resetAllGames()" class="btn-danger">🔄 Apagar Todos os Grupos</button>
-                        <button onclick="loadAdminData()" class="btn-primary" style="width: auto; padding: 10px 20px;">🔄 Atualizar Agora</button>
+                        <button onclick="loadAdminData()" class="btn-primary"
+                            style="width: auto; padding: 10px 20px;">🔄 Atualizar Agora</button>
                     </div>
                 </div>
             </div>
@@ -80,15 +81,18 @@
             <div id="tabAnalytics" class="tab-content">
                 <div class="admin-section">
                     <h2>🎯 Etapas Mais Difíceis</h2>
-                    <p class="helper-text" style="margin-bottom: 15px;">Ranking das etapas com mais erros somando todos os grupos. Use isso para ver onde os alunos mais travam.</p>
+                    <p class="helper-text" style="margin-bottom: 15px;">Ranking das etapas com mais erros somando todos
+                        os grupos. Use isso para ver onde os alunos mais travam.</p>
                     <div id="hardestStagesList">
-                        <p class="empty-message">📭 Ainda não há dados suficientes. Assim que os grupos começarem a jogar, o ranking aparece aqui.</p>
+                        <p class="empty-message">📭 Ainda não há dados suficientes. Assim que os grupos começarem a
+                            jogar, o ranking aparece aqui.</p>
                     </div>
                 </div>
 
                 <div class="admin-section">
                     <h2>📋 Detalhes por Etapa</h2>
-                    <p class="helper-text" style="margin-bottom: 15px;">Erros totais, tempo médio e o grupo mais rápido em cada etapa.</p>
+                    <p class="helper-text" style="margin-bottom: 15px;">Erros totais, tempo médio e o grupo mais rápido
+                        em cada etapa.</p>
                     <div id="questionAnalyticsList">
                         <p class="empty-message">📭 Nenhum dado registrado ainda.</p>
                     </div>
@@ -99,7 +103,20 @@
             <div id="tabQuestions" class="tab-content">
                 <div class="admin-section">
                     <h2>📝 Cadastrar Nova Etapa da Caçada</h2>
-
+                    <!-- Nova Sessão de Importação por IA -->
+                    <div class="admin-section"
+                        style="background: #f4f0ff; border: 2px dashed #8e44ad; margin-bottom: 30px;">
+                        <h2 style="color: #6c3483;">🤖 Importação Rápida via IA</h2>
+                        <p class="helper-text" style="margin-bottom: 15px;">Cole o código JSON gerado pela Inteligência
+                            Artificial para cadastrar várias missões de uma só vez.</p>
+                        <textarea id="aiImportText" class="input-field" rows="5"
+                            placeholder="Cole o código [ { ... }, { ... } ] gerado pela IA aqui..."
+                            style="font-family: monospace;"></textarea>
+                        <button onclick="importQuestionsAI()" class="btn-primary"
+                            style="background: #8e44ad; border: none; margin-top: 10px;">✨ Importar Missões
+                            Automaticamente</button>
+                        <div id="importAiMessage" class="clue-message"></div>
+                    </div>
                     <div class="question-form">
                         <div class="form-row">
                             <div class="form-group">
@@ -119,20 +136,23 @@
                             <label>📍 Pista (O que o aluno VÊ no celular)</label>
                             <textarea id="newQuestionLocation" class="input-field"
                                 placeholder="Ex: Corram para a quadra de esportes e procurem atrás do gol principal."></textarea>
-                            <small class="helper-text">O que as crianças vão ler no celular para saber para onde correr.</small>
+                            <small class="helper-text">O que as crianças vão ler no celular para saber para onde
+                                correr.</small>
                         </div>
 
                         <div class="form-group">
                             <label>🧮 Desafio (O que está NA PISTA FÍSICA - Só o professor vê)</label>
                             <input type="text" id="newQuestionChallenge" class="input-field"
                                 placeholder="Ex: Qual é o resultado de 8 x 15?">
-                            <small class="helper-text">A pergunta que está impressa na pista física. Os alunos NÃO veem no site.</small>
+                            <small class="helper-text">A pergunta que está impressa na pista física. Os alunos NÃO veem
+                                no site.</small>
                         </div>
 
                         <!-- Resposta Descritiva -->
                         <div class="form-group" id="answerField">
                             <label>✅ Resposta Correta (Descritiva)</label>
-                            <input type="text" id="newQuestionAnswer" placeholder="Ex: 120 ou 'biblioteca'" class="input-field">
+                            <input type="text" id="newQuestionAnswer" placeholder="Ex: 120 ou 'biblioteca'"
+                                class="input-field">
                             <small class="helper-text">O que o aluno precisa digitar para avançar.</small>
                         </div>
 
@@ -172,10 +192,12 @@
                             <label>💡 Dica do Professor (Opcional)</label>
                             <input type="text" id="newQuestionHint" class="input-field"
                                 placeholder="Ex: Lembre-se da tabuada do 8.">
-                            <small class="helper-text">Só aparece se eles clicarem no botão "Pedir Dica" (limitado a 3 usos).</small>
+                            <small class="helper-text">Só aparece se eles clicarem no botão "Pedir Dica" (limitado a 3
+                                usos).</small>
                         </div>
 
-                        <button onclick="addQuestion()" class="btn-primary" style="margin-top: 15px;">➕ Cadastrar Missão</button>
+                        <button onclick="addQuestion()" class="btn-primary" style="margin-top: 15px;">➕ Cadastrar
+                            Missão</button>
                         <div id="addQuestionMessage" class="clue-message"></div>
                     </div>
 
