@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👑 Admin - Detetives Matemáticos</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="container admin-container">
         <!-- Login do Professor -->
@@ -31,16 +33,28 @@
 
             <!-- Estatísticas -->
             <div class="stats-grid">
-                <div class="stat-card"><h3>👥 Grupos</h3><p id="totalGroups">0</p></div>
-                <div class="stat-card"><h3>📝 Etapas</h3><p id="totalQuestions">0</p></div>
-                <div class="stat-card"><h3>🏃 Na Caçada</h3><p id="activeGroups">0</p></div>
-                <div class="stat-card"><h3>🏆 Vencedores</h3><p id="winnerGroups">0</p></div>
+                <div class="stat-card">
+                    <h3>👥 Grupos</h3>
+                    <p id="totalGroups">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>📝 Etapas</h3>
+                    <p id="totalQuestions">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>🏃 Na Caçada</h3>
+                    <p id="activeGroups">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>🏆 Vencedores</h3>
+                    <p id="winnerGroups">0</p>
+                </div>
             </div>
 
             <!-- Abas -->
             <div class="admin-tabs">
                 <button class="admin-tab active" onclick="switchTab('ranking')">🏆 Monitorar Grupos</button>
-                <button class="admin-tab" onclick="switchTab('questions')">📝 Criar Missões (Papéis)</button>
+                <button class="admin-tab" onclick="switchTab('questions')">📝 Criar Missões</button>
             </div>
 
             <!-- ABA: Monitorar Grupos (Ranking) -->
@@ -48,14 +62,15 @@
                 <div class="admin-section">
                     <h2>🏆 Acompanhamento Ao Vivo</h2>
                     <div id="groupsList" class="groups-grid">
-                        <p class="empty-message">Nenhum grupo correndo pela escola no momento...</p>
+                        <p class="empty-message">👀 Nenhum grupo ativo...</p>
                     </div>
                 </div>
 
                 <div class="admin-section">
                     <h2>⚡ Controles Rápidos</h2>
-                    <div class="quick-actions">
-                        <button onclick="resetAllGames()" class="btn-danger">🔄 Apagar Todos os Grupos e Reiniciar</button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick="resetAllGames()" class="btn-danger">🔄 Apagar Todos os Grupos</button>
+                        <button onclick="loadAdminData()" class="btn-primary" style="width: auto; padding: 10px 20px;">🔄 Atualizar Agora</button>
                     </div>
                 </div>
             </div>
@@ -64,7 +79,7 @@
             <div id="tabQuestions" class="tab-content">
                 <div class="admin-section">
                     <h2>📝 Cadastrar Nova Etapa da Caçada</h2>
-                    
+
                     <div class="question-form">
                         <div class="form-row">
                             <div class="form-group">
@@ -72,27 +87,71 @@
                                 <input type="number" id="newQuestionOrder" placeholder="1" class="input-field" min="1">
                             </div>
                             <div class="form-group">
-                                <label>🔐 A Senha Numérica (Resultado)</label>
-                                <input type="text" id="newQuestionAnswer" placeholder="Ex: 120" class="input-field" style="border-color: #27ae60;">
-                                <small class="helper-text">O resultado da conta matemática que o grupo tem que acertar.</small>
+                                <label>Tipo de Resposta</label>
+                                <select id="newQuestionType" class="input-field" onchange="toggleQuestionType()">
+                                    <option value="descritiva">📝 Descritiva (Texto)</option>
+                                    <option value="multipla">🎯 Múltipla Escolha</option>
+                                </select>
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label>📍 Fase 1: Onde esconder o papel? (Dica de Localização)</label>
-                            <textarea id="newQuestionLocation" class="input-field" placeholder="Ex: Corram para a quadra de esportes e procurem atrás do gol principal."></textarea>
+                            <label>📍 Pista (O que o aluno VÊ no celular)</label>
+                            <textarea id="newQuestionLocation" class="input-field"
+                                placeholder="Ex: Corram para a quadra de esportes e procurem atrás do gol principal."></textarea>
                             <small class="helper-text">O que as crianças vão ler no celular para saber para onde correr.</small>
                         </div>
 
                         <div class="form-group">
-                            <label>🧮 Fase 2: O que está escrito no papel físico?</label>
-                            <input type="text" id="newQuestionChallenge" class="input-field" placeholder="Ex: Resolvam a conta de divisão!">
-                            <small class="helper-text">Aparece no celular logo acima de onde eles digitam o resultado numérico.</small>
+                            <label>🧮 Desafio (O que está NA PISTA FÍSICA - Só o professor vê)</label>
+                            <input type="text" id="newQuestionChallenge" class="input-field"
+                                placeholder="Ex: Qual é o resultado de 8 x 15?">
+                            <small class="helper-text">A pergunta que está impressa na pista física. Os alunos NÃO veem no site.</small>
+                        </div>
+
+                        <!-- Resposta Descritiva -->
+                        <div class="form-group" id="answerField">
+                            <label>✅ Resposta Correta (Descritiva)</label>
+                            <input type="text" id="newQuestionAnswer" placeholder="Ex: 120 ou 'biblioteca'" class="input-field">
+                            <small class="helper-text">O que o aluno precisa digitar para avançar.</small>
+                        </div>
+
+                        <!-- Alternativas Múltipla Escolha -->
+                        <div class="form-group" id="alternativesField" style="display:none;">
+                            <label>✅ Alternativas (Múltipla Escolha)</label>
+                            <div class="alternatives-grid" id="alternativesContainer">
+                                <div class="alternative-item">
+                                    <span class="letter">A)</span>
+                                    <input type="text" placeholder="Alternativa A" class="alt-input">
+                                    <input type="radio" name="correctAnswer" value="A" class="correct-radio">
+                                    <span style="font-size:0.8em;color:#666;">✓ Correta</span>
+                                </div>
+                                <div class="alternative-item">
+                                    <span class="letter">B)</span>
+                                    <input type="text" placeholder="Alternativa B" class="alt-input">
+                                    <input type="radio" name="correctAnswer" value="B" class="correct-radio">
+                                    <span style="font-size:0.8em;color:#666;">✓ Correta</span>
+                                </div>
+                                <div class="alternative-item">
+                                    <span class="letter">C)</span>
+                                    <input type="text" placeholder="Alternativa C" class="alt-input">
+                                    <input type="radio" name="correctAnswer" value="C" class="correct-radio">
+                                    <span style="font-size:0.8em;color:#666;">✓ Correta</span>
+                                </div>
+                                <div class="alternative-item">
+                                    <span class="letter">D)</span>
+                                    <input type="text" placeholder="Alternativa D" class="alt-input">
+                                    <input type="radio" name="correctAnswer" value="D" class="correct-radio">
+                                    <span style="font-size:0.8em;color:#666;">✓ Correta</span>
+                                </div>
+                            </div>
+                            <small class="helper-text">Selecione o ✓ da alternativa correta.</small>
                         </div>
 
                         <div class="form-group">
                             <label>💡 Dica do Professor (Opcional)</label>
-                            <input type="text" id="newQuestionHint" class="input-field" placeholder="Ex: Lembre-se da tabuada do 8.">
+                            <input type="text" id="newQuestionHint" class="input-field"
+                                placeholder="Ex: Lembre-se da tabuada do 8.">
                             <small class="helper-text">Só aparece se eles clicarem no botão "Pedir Dica" (limitado a 3 usos).</small>
                         </div>
 
@@ -100,15 +159,14 @@
                         <div id="addQuestionMessage" class="clue-message"></div>
                     </div>
 
-                    <div class="questions-list-admin">
-                        <h3>📋 Caminho da Caça ao Tesouro</h3>
+                    <div class="questions-list-admin" style="margin-top: 30px;">
+                        <h3>📋 Missões Cadastradas</h3>
                         <div id="questionsListAdmin">
-                            <p class="empty-message">Nenhuma etapa cadastrada ainda...</p>
+                            <p class="empty-message">📭 Nenhuma etapa cadastrada ainda. Crie uma missão acima!</p>
                         </div>
                     </div>
                 </div>
             </div>
-            
         </div>
     </div>
 
@@ -117,4 +175,5 @@
     <script src="firebase-config.js"></script>
     <script src="admin-script.js"></script>
 </body>
+
 </html>

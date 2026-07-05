@@ -11,7 +11,7 @@
         <!-- Tela de Login -->
         <div id="loginScreen" class="screen active">
             <div class="detective-header">
-                <img src="https://cdn-icons-png.flaticon.com/512/3035/3035369.png" alt="Detetive" class="detective-icon">
+                <img src="https://api.iconify.design/mdi/fingerprint.svg" alt="Investigação" class="detective-icon">
                 <h1>🕵️‍♂️ Agência de Detetives</h1>
                 <p>Encontrem as pistas e resolvam as missões pela escola!</p>
             </div>
@@ -78,28 +78,28 @@
             <div class="game-content">
                 <div class="question-container">
                     
-                    <!-- FASE 1: BUSCA DO PAPEL NA ESCOLA -->
+                    <!-- FASE 1: BUSCA DA PISTA NA ESCOLA -->
                     <div id="phaseLocation" class="phase-section active">
                         <div class="question-number" id="questionNumberLocation">Etapa 1</div>
                         <h2>📍 Para onde devemos ir?</h2>
-                        <p style="color: #666; margin-top: 10px;">Corram juntos até este local e procurem o papel da missão:</p>
+                        <p style="color: #666; margin-top: 10px;">Corram juntos até este local e procurem a pista da missão:</p>
                         
                         <div class="question-text" id="locationText" style="border-left: 4px solid #f39c12; font-size: 1.4em; text-align: center; background: #fff8e1;">
                             Carregando pista...
                         </div>
                         
                         <button onclick="foundPaper()" class="btn-primary" style="margin-top: 15px; font-size: 1.2em; padding: 18px;">
-                            🗺️ Encontramos o Papel da Missão!
+                            🗺️ Encontramos a Pista da Missão!
                         </button>
                     </div>
 
-                    <!-- FASE 2: RESOLVER O DESAFIO DO PAPEL -->
+                    <!-- FASE 2: RESOLVER O DESAFIO DA PISTA -->
                     <div id="phaseChallenge" class="phase-section">
                         <div class="question-number" id="questionNumberChallenge">Etapa 1 - Desafio</div>
                         <h2>🧮 O Cadeado Numérico</h2>
                         
                         <div class="question-text challenge-box" id="challengeText" style="border-left: 4px solid #27ae60;">
-                            Resolva a conta que está no papel.
+                            🔐 Digite a resposta que vocês encontraram na pista física:
                         </div>
 
                         <!-- Sistema de Dicas (Limitado) -->
@@ -110,8 +110,21 @@
                         </div>
                         <p class="question-hint" id="questionHint" style="display: none;"></p>
                         
-                        <div style="margin: 20px 0;">
-                            <input type="text" id="answerInput" placeholder="Qual o resultado?" class="input-field" style="font-size: 1.5em; max-width: 300px;">
+                        <!-- INPUT PARA RESPOSTA DESCRITIVA -->
+                        <div id="descriptiveInput" style="margin: 20px 0;">
+                            <input type="text" id="answerInput" placeholder="Digite a resposta..." class="input-field" style="font-size: 1.5em; max-width: 300px;">
+                        </div>
+
+                        <!-- BOTÕES PARA MÚLTIPLA ESCOLHA -->
+                        <div id="multipleChoiceInput" style="margin: 20px 0; display: none;">
+                            <p style="color: #666; margin-bottom: 15px;">👆 Clique na alternativa correta:</p>
+                            <div class="alternatives-buttons" id="alternativesButtons">
+                                <button class="alt-btn" data-letter="A" onclick="selectAlternative('A')">A</button>
+                                <button class="alt-btn" data-letter="B" onclick="selectAlternative('B')">B</button>
+                                <button class="alt-btn" data-letter="C" onclick="selectAlternative('C')">C</button>
+                                <button class="alt-btn" data-letter="D" onclick="selectAlternative('D')">D</button>
+                            </div>
+                            <div id="selectedAlternative" style="margin-top: 10px; font-weight: bold; color: #555;"></div>
                         </div>
                         
                         <button onclick="checkAnswer()" class="btn-check-answer" id="btnCheckAnswer">✅ Tentar Abrir Cadeado</button>
@@ -134,13 +147,15 @@
             <div class="win-content">
                 <img src="https://cdn-icons-png.flaticon.com/512/190/190411.png" alt="Troféu" class="trophy-icon">
                 <h1>🏆 Missão Cumprida!</h1>
-                <h2>Vocês desvendaram todos os mistérios da escola!</h2>
+                <h2>🎉 Parabéns, detetives! Vocês desvendaram todos os mistérios da escola!</h2>
                 <div class="win-details">
                     <p>⏱️ Tempo Final: <span id="winTime">00:00</span></p>
                     <p>👥 Equipe: <span id="winGroup"></span></p>
                     <p>👤 Detetives: <span id="winMembers"></span></p>
                 </div>
-                <button onclick="resetGame()" class="btn-primary">🔄 Retornar ao Início</button>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
+                    <button onclick="resetGame()" class="btn-primary" style="max-width: 300px;">🔄 Retornar ao Início</button>
+                </div>
             </div>
         </div>
     </div>

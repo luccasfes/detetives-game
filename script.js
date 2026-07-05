@@ -5,9 +5,11 @@ let currentQuestionIndex = 0;
 let timerInterval = null;
 let seconds = 0;
 let gameStarted = false;
-let hintsLeft = 3; 
+let hintsLeft = 3;
+let selectedAlternative = null;
+let isGameOver = false;
 
-// ============ CARREGAR DADOS DA ESCOLA ============
+// ============ CARREGAR DADOS ============
 function loadQuestions() {
     database.ref('questions').on('value', (snapshot) => {
         const data = snapshot.val();
@@ -28,7 +30,10 @@ function addMember() {
     const memberCount = container.children.length + 1;
     const row = document.createElement('div');
     row.className = 'member-row';
-    row.innerHTML = `<span class="member-number">${memberCount}</span><input type="text" placeholder="Nome do detetive" class="input-field" style="margin:0;">`;
+    row.innerHTML = `
+        <span class="member-number">${memberCount}</span>
+        <input type="text" placeholder="Nome do detetive" class="input-field" style="margin:0;">
+    `;
     container.appendChild(row);
     row.querySelector('input').focus();
 }
@@ -49,7 +54,7 @@ function getMembers() {
     return Array.from(inputs).map(input => input.value.trim()).filter(name => name);
 }
 
-// ============ FLUXO DE LOGIN (SEM CHECAGEM DE NOME DUPLA) ============
+// ============ FLUXO DE LOGIN ============
 function goToConfirm() {
     const groupName = document.getElementById('groupNameInput').value.trim();
     const members = getMembers();
@@ -67,15 +72,24 @@ function goToConfirm() {
         if (snapshot.exists()) {
             const data = snapshot.val();
             const existingMembers = data.members || [];
-            const match = members.every(m => existingMembers.includes(m)) && existingMembers.every(m => members.includes(m));
+            const match = members.every(m => existingMembers.includes(m)) && 
+                         existingMembers.every(m => members.includes(m));
             if (!match) return errorDiv.textContent = '❌ Esta equipe já existe com outros integrantes!';
+            
+            // Se o grupo já completou, mostra mensagem
+            if (data.completed) {
+                errorDiv.textContent = '🏆 Esta equipe já completou a caçada! Parabéns!';
+                return;
+            }
         }
         
-        currentGroup = groupName; // Guarda direto no estado global
+        currentGroup = groupName;
         currentMembers = members;
         
         document.getElementById('previewGroupName').textContent = groupName;
-        document.getElementById('previewMembers').innerHTML = members.map(m => `<span class="member-tag-preview">${m}</span>`).join(' ');
+        document.getElementById('previewMembers').innerHTML = members.map(m => 
+            `<span class="member-tag-preview">${m}</span>`
+        ).join(' ');
         
         document.getElementById('stepCreateGroup').classList.remove('active');
         document.getElementById('stepConfirmGroup').classList.add('active');
@@ -98,19 +112,30 @@ function confirmGroup() {
     database.ref('groups/' + currentGroup).once('value').then((snapshot) => {
         const data = snapshot.exists() ? snapshot.val() : null;
         
-        currentQuestionIndex = data ? (data.currentQuestion || 0) : 0;
-        
+        // Verifica se já completou
         if (data && data.completed) {
-            winGame();
+            // Recupera os dados da vitória
+            currentMembers = data.members || [];
+            seconds = data.finalTime || 0;
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            document.getElementById('winTime').textContent = `${m}:${s}`;
+            document.getElementById('winGroup').textContent = currentGroup;
+            document.getElementById('winMembers').textContent = currentMembers.join(', ');
+            switchScreen('winScreen');
             return;
         }
-
+        
+        currentQuestionIndex = data ? (data.currentQuestion || 0) : 0;
+        
         if (!data) {
             database.ref('groups/' + currentGroup).set({
-                members: currentMembers, 
-                currentQuestion: 0, 
-                started: false, 
-                completed: false, 
+                members: currentMembers,
+                currentQuestion: 0,
+                started: false,
+                completed: false,
+                errors: 0,
+                hintsUsed: 0,
                 createdAt: Date.now()
             });
         }
@@ -124,6 +149,7 @@ function confirmGroup() {
 function startGame() {
     database.ref('groups/' + currentGroup).update({ started: true });
     gameStarted = true;
+    isGameOver = false;
     switchScreen('gameScreen');
     document.getElementById('displayGroup').textContent = currentGroup;
     document.getElementById('displayMembers').textContent = currentMembers.join(', ');
@@ -135,10 +161,13 @@ function startGame() {
 
 // ============ FASE 1: BUSCANDO O PAPEL FÍSICO ============
 function showPhaseLocation() {
-    if (currentQuestionIndex >= allQuestions.length) return winGame();
+    if (currentQuestionIndex >= allQuestions.length) {
+        winGame();
+        return;
+    }
     
     const question = allQuestions[currentQuestionIndex];
-    document.getElementById('questionProgress').textContent = currentQuestionIndex;
+    document.getElementById('questionProgress').textContent = currentQuestionIndex + 1;
     
     document.getElementById('phaseChallenge').classList.remove('active');
     document.getElementById('phaseLocation').classList.add('active');
@@ -157,13 +186,41 @@ function foundPaper() {
     document.getElementById('phaseChallenge').classList.add('active');
     
     document.getElementById('questionNumberChallenge').textContent = `Desafio da Etapa ${currentQuestionIndex + 1}`;
-    document.getElementById('challengeText').textContent = question.challenge;
     
-    // Reseta visual e botão
-    const input = document.getElementById('answerInput');
-    input.value = '';
-    input.style.borderColor = '#ddd';
-    input.focus();
+    // ⚠️ O aluno NUNCA vê a pergunta - só a instrução genérica
+    document.getElementById('challengeText').textContent = "🔐 Digite a resposta que vocês encontraram na pista física:";
+    
+    // Resetar seleção
+    selectedAlternative = null;
+    document.getElementById('selectedAlternative').textContent = '';
+    document.querySelectorAll('.alt-btn').forEach(btn => btn.classList.remove('selected'));
+    
+    // Mostrar input correto conforme o tipo
+    const descriptiveDiv = document.getElementById('descriptiveInput');
+    const multipleDiv = document.getElementById('multipleChoiceInput');
+    const answerInput = document.getElementById('answerInput');
+    
+    if (question.type === 'multipla') {
+        descriptiveDiv.style.display = 'none';
+        multipleDiv.style.display = 'block';
+        const letters = ['A', 'B', 'C', 'D'];
+        const buttons = document.querySelectorAll('.alt-btn');
+        buttons.forEach((btn, index) => {
+            if (index < question.alternatives.length) {
+                btn.textContent = `${letters[index]}) ${question.alternatives[index]}`;
+                btn.style.display = 'inline-block';
+            } else {
+                btn.style.display = 'none';
+            }
+        });
+        answerInput.value = '';
+    } else {
+        descriptiveDiv.style.display = 'block';
+        multipleDiv.style.display = 'none';
+        answerInput.value = '';
+        answerInput.style.borderColor = '#ddd';
+        answerInput.focus();
+    }
     
     document.getElementById('btnCheckAnswer').disabled = false;
     document.getElementById('feedbackMessage').style.display = 'none';
@@ -173,8 +230,8 @@ function foundPaper() {
     const hintButton = document.getElementById('btnShowHint');
     if (question.hint) {
         hintElement.textContent = `💡 Dica da Central: ${question.hint}`;
-        hintElement.style.display = 'none'; 
-        hintButton.style.display = 'inline-block'; 
+        hintElement.style.display = 'none';
+        hintButton.style.display = 'inline-block';
         document.getElementById('hintsRemaining').textContent = hintsLeft;
     } else {
         hintElement.style.display = 'none';
@@ -182,45 +239,94 @@ function foundPaper() {
     }
 }
 
-// ============ SISTEMA DE DICAS E VERIFICAÇÃO ============
+// ============ SELECIONAR ALTERNATIVA (Múltipla Escolha) ============
+function selectAlternative(letter) {
+    selectedAlternative = letter;
+    document.querySelectorAll('.alt-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.letter === letter);
+    });
+    document.getElementById('selectedAlternative').textContent = `✅ Alternativa ${letter} selecionada`;
+    document.getElementById('answerInput').value = letter;
+}
+
+// ============ SISTEMA DE DICAS ============
 function useHint() {
     if (hintsLeft > 0) {
         hintsLeft--;
         document.getElementById('hintsRemaining').textContent = hintsLeft;
-        document.getElementById('questionHint').style.display = 'block'; 
-        document.getElementById('btnShowHint').style.display = 'none'; 
+        document.getElementById('questionHint').style.display = 'block';
+        document.getElementById('btnShowHint').style.display = 'none';
+        
+        database.ref('groups/' + currentGroup).update({ hintsUsed: (3 - hintsLeft) });
     } else {
-        showFeedback('❌ A equipe esgotou todas as 3 dicas disponíveis na missão!', 'error');
+        showFeedback('❌ A equipe esgotou todas as 3 dicas disponíveis!', 'error');
     }
 }
 
+// ============ VERIFICAR RESPOSTA ============
 function checkAnswer() {
-    if (!gameStarted) return;
+    if (!gameStarted || isGameOver) return;
     
     const question = allQuestions[currentQuestionIndex];
-    const userAnswer = document.getElementById('answerInput').value.trim().toLowerCase();
+    const userAnswer = document.getElementById('answerInput').value.trim();
     const btn = document.getElementById('btnCheckAnswer');
     
-    if (!userAnswer) return showFeedback('❌ Digite o resultado numérico que vocês encontraram!', 'error');
+    // Verifica se resposta foi fornecida
+    if (question.type === 'multipla') {
+        if (!selectedAlternative) {
+            return showFeedback('❌ Selecione uma alternativa clicando nela!', 'error');
+        }
+    } else {
+        if (!userAnswer) {
+            return showFeedback('❌ Digite a resposta que vocês encontraram!', 'error');
+        }
+    }
     
     btn.disabled = true;
-    const isCorrect = userAnswer === question.answer.toLowerCase().trim();
+    let isCorrect = false;
+    
+    if (question.type === 'multipla') {
+        isCorrect = selectedAlternative === question.correctAnswer;
+    } else {
+        isCorrect = userAnswer.toLowerCase().trim() === question.answer.toLowerCase().trim();
+    }
     
     if (isCorrect) {
         document.getElementById('answerInput').style.borderColor = '#27ae60';
         showFeedback(`✅ Cadeado Aberto! Código aceito com sucesso! 🎉`, 'success');
         
         currentQuestionIndex++;
-        database.ref('groups/' + currentGroup).update({ currentQuestion: currentQuestionIndex });
+        database.ref('groups/' + currentGroup).update({ 
+            currentQuestion: currentQuestionIndex,
+            errors: 0
+        });
         
-        setTimeout(() => {
-            if (currentQuestionIndex >= allQuestions.length) winGame();
-            else showPhaseLocation();
-        }, 2000);
+        // Verifica se completou TODAS as etapas
+        if (currentQuestionIndex >= allQuestions.length) {
+            setTimeout(() => {
+                winGame();
+            }, 1500);
+        } else {
+            setTimeout(() => {
+                showPhaseLocation();
+            }, 1500);
+        }
     } else {
         document.getElementById('answerInput').style.borderColor = '#e74c3c';
-        showFeedback(`❌ Cadeado Travado. Verifiquem o cálculo e tentem novamente.`, 'error');
-        setTimeout(() => { btn.disabled = false; }, 1500);
+        
+        database.ref('groups/' + currentGroup + '/errors').transaction((current) => {
+            return (current || 0) + 1;
+        });
+        
+        showFeedback(`❌ Cadeado Travado. Verifiquem a pista e tentem novamente.`, 'error');
+        setTimeout(() => { 
+            btn.disabled = false;
+            if (question.type === 'multipla') {
+                // Mantém a seleção
+            } else {
+                document.getElementById('answerInput').focus();
+            }
+        }, 1500);
     }
 }
 
@@ -231,7 +337,7 @@ function showFeedback(message, type) {
     div.style.display = 'block';
 }
 
-// ============ SISTEMA CENTRAL ============
+// ============ UTILITÁRIOS ============
 function renderProgressDots() {
     const container = document.getElementById('progressDots');
     container.innerHTML = '';
@@ -250,39 +356,94 @@ function startTimer() {
         const m = Math.floor(seconds / 60).toString().padStart(2, '0');
         const s = (seconds % 60).toString().padStart(2, '0');
         document.getElementById('timerDisplay').textContent = `${m}:${s}`;
-        if (seconds % 10 === 0) database.ref('groups/' + currentGroup).update({ time: seconds });
+        if (seconds % 10 === 0) {
+            database.ref('groups/' + currentGroup).update({ time: seconds });
+        }
     }, 1000);
 }
 
 function winGame() {
-    clearInterval(timerInterval);
-    timerInterval = null;
-    document.getElementById('winTime').textContent = document.getElementById('timerDisplay').textContent;
+    // Para o timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    
+    // Marca como completo no banco
+    database.ref('groups/' + currentGroup).update({ 
+        completed: true, 
+        finalTime: seconds 
+    });
+    
+    // Mostra tela de vitória
+    isGameOver = true;
+    gameStarted = false;
+    
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    document.getElementById('winTime').textContent = `${m}:${s}`;
     document.getElementById('winGroup').textContent = currentGroup;
     document.getElementById('winMembers').textContent = currentMembers.join(', ');
+    
     switchScreen('winScreen');
-    database.ref('groups/' + currentGroup).update({ completed: true, finalTime: seconds });
 }
 
 function resetGame() {
-    if (currentGroup && confirm('⚠️ Desistir da caçada e apagar progresso da equipe?')) {
-        database.ref('groups/' + currentGroup).remove();
-    } else if (currentGroup) {
+    // Se já completou, não pede confirmação
+    if (isGameOver) {
+        cleanupAndReset();
         return;
     }
     
-    currentGroup = null; currentMembers = []; currentQuestionIndex = 0; gameStarted = false; seconds = 0; hintsLeft = 3;
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    if (currentGroup && !confirm('⚠️ Desistir da caçada e apagar progresso da equipe?')) {
+        return;
+    }
     
+    if (currentGroup) {
+        database.ref('groups/' + currentGroup).remove();
+    }
+    
+    cleanupAndReset();
+}
+
+function cleanupAndReset() {
+    // Limpa listeners e timers
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    
+    // Reseta variáveis
+    currentGroup = null;
+    currentMembers = [];
+    currentQuestionIndex = 0;
+    gameStarted = false;
+    isGameOver = false;
+    seconds = 0;
+    hintsLeft = 3;
+    selectedAlternative = null;
+    
+    // Reseta UI
     document.getElementById('timerDisplay').textContent = '00:00';
     document.getElementById('groupNameInput').value = '';
     document.getElementById('membersList').innerHTML = '';
-    addMember(); addMember();
+    document.getElementById('feedbackMessage').style.display = 'none';
+    document.getElementById('feedbackMessage').className = 'feedback-message';
+    document.getElementById('phaseChallenge').classList.remove('active');
+    document.getElementById('phaseLocation').classList.add('active');
+    document.querySelectorAll('.alt-btn').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById('selectedAlternative').textContent = '';
+    
+    // Adiciona membros padrão
+    addMember();
+    addMember();
+    
+    // Volta para tela de login
     switchScreen('loginScreen');
 }
 
 function logout() {
-    resetGame();
+    cleanupAndReset();
 }
 
 function switchScreen(id) {
@@ -290,24 +451,42 @@ function switchScreen(id) {
     document.getElementById(id).classList.add('active');
 }
 
-// ============ INICIADORES E EVENTOS ============
+// ============ INICIALIZAÇÃO ============
 document.addEventListener('DOMContentLoaded', () => {
-    loadQuestions(); 
-    addMember(); 
+    loadQuestions();
+    addMember();
     addMember();
     
     document.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            if (document.getElementById('stepCreateGroup').classList.contains('active')) goToConfirm();
-            else if (document.getElementById('stepConfirmGroup').classList.contains('active')) confirmGroup();
-            else if (document.getElementById('phaseChallenge').classList.contains('active')) {
-                if (!document.getElementById('btnCheckAnswer').disabled) checkAnswer();
+            if (document.getElementById('stepCreateGroup').classList.contains('active')) {
+                goToConfirm();
+            } else if (document.getElementById('stepConfirmGroup').classList.contains('active')) {
+                confirmGroup();
+            } else if (document.getElementById('phaseChallenge').classList.contains('active')) {
+                if (!document.getElementById('btnCheckAnswer').disabled) {
+                    checkAnswer();
+                }
             }
+        }
+    });
+    
+    document.getElementById('answerInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !document.getElementById('btnCheckAnswer').disabled) {
+            checkAnswer();
         }
     });
 });
 
-window.addMember = addMember; window.removeLastMember = removeLastMember;
-window.goToConfirm = goToConfirm; window.goBackToCreate = goBackToCreate; window.confirmGroup = confirmGroup;
-window.foundPaper = foundPaper; window.useHint = useHint; window.checkAnswer = checkAnswer;
-window.resetGame = resetGame; window.logout = logout;
+// ============ EXPORTAR ============
+window.addMember = addMember;
+window.removeLastMember = removeLastMember;
+window.goToConfirm = goToConfirm;
+window.goBackToCreate = goBackToCreate;
+window.confirmGroup = confirmGroup;
+window.foundPaper = foundPaper;
+window.useHint = useHint;
+window.checkAnswer = checkAnswer;
+window.selectAlternative = selectAlternative;
+window.resetGame = resetGame;
+window.logout = logout;

@@ -2,6 +2,7 @@ const ADMIN_PASSWORD = 'admin123';
 let allGroups = [];
 let allQuestions = [];
 
+// ============ LOGIN ============
 function adminLogin() {
     const password = document.getElementById('adminPassword').value;
     if (password === ADMIN_PASSWORD) {
@@ -15,43 +16,74 @@ function adminLogin() {
 }
 
 function adminLogout() {
+    // Remove listeners para evitar vazamento de memória
+    database.ref('groups').off();
+    database.ref('questions').off();
     switchScreen('adminLogin');
     document.getElementById('adminPassword').value = '';
 }
 
+// ============ TABS ============
 function switchTab(tab) {
     document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     
-    const tabs = { 'ranking': { index: 0, id: 'tabRanking' }, 'questions': { index: 1, id: 'tabQuestions' } };
+    const tabs = { 
+        'ranking': { index: 0, id: 'tabRanking' }, 
+        'questions': { index: 1, id: 'tabQuestions' } 
+    };
     document.querySelectorAll('.admin-tab')[tabs[tab].index].classList.add('active');
     document.getElementById(tabs[tab].id).classList.add('active');
 }
 
+// ============ ALTERNAR TIPO ============
+function toggleQuestionType() {
+    const type = document.getElementById('newQuestionType').value;
+    document.getElementById('answerField').style.display = type === 'multipla' ? 'none' : 'block';
+    document.getElementById('alternativesField').style.display = type === 'multipla' ? 'block' : 'none';
+}
+
+// ============ CARREGAR DADOS EM TEMPO REAL ============
 function loadAdminData() {
+    // 🔥 LISTENER EM TEMPO REAL PARA GRUPOS
     database.ref('groups').on('value', (snapshot) => {
-        allGroups = snapshot.exists() ? Object.keys(snapshot.val()).map(k => ({ name: k, ...snapshot.val()[k] })) : [];
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            allGroups = Object.keys(data).map(k => ({ 
+                name: k, 
+                ...data[k] 
+            }));
+        } else {
+            allGroups = [];
+        }
         renderGroupsListRanking();
         updateStats();
     });
 
+    // 🔥 LISTENER EM TEMPO REAL PARA QUESTÕES
     database.ref('questions').on('value', (snapshot) => {
-        allQuestions = snapshot.exists() ? Object.values(snapshot.val()).sort((a, b) => (a.order || 0) - (b.order || 0)) : [];
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            allQuestions = Object.values(data).sort((a, b) => (a.order || 0) - (b.order || 0));
+        } else {
+            allQuestions = [];
+        }
         renderQuestionsList();
         updateStats();
     });
 }
 
+// ============ ADICIONAR QUESTÃO ============
 function addQuestion() {
     const order = parseInt(document.getElementById('newQuestionOrder').value);
-    const answer = document.getElementById('newQuestionAnswer').value.trim();
+    const type = document.getElementById('newQuestionType').value;
     const location = document.getElementById('newQuestionLocation').value.trim();
     const challenge = document.getElementById('newQuestionChallenge').value.trim();
     const hint = document.getElementById('newQuestionHint').value.trim();
     const msg = document.getElementById('addQuestionMessage');
 
-    if (!order || !answer || !location) {
-        msg.textContent = '❌ Ordem, Local e Senha são obrigatórios!';
+    if (!order || !location) {
+        msg.textContent = '❌ Ordem e Local são obrigatórios!';
         msg.className = 'clue-message error';
         return;
     }
@@ -62,107 +94,273 @@ function addQuestion() {
         return;
     }
 
-    const questionData = {
+    let questionData = {
         id: 'Q' + String(order).padStart(3, '0'),
         order: order,
+        type: type,
         location: location,
-        challenge: challenge || 'Resolva a conta do papel:',
-        answer: answer,
-        hint: hint,
+        challenge: challenge || 'Resolva o desafio da pista!',
+        hint: hint || '',
         createdAt: Date.now()
     };
 
+    if (type === 'multipla') {
+        const altInputs = document.querySelectorAll('.alt-input');
+        const alternatives = [];
+        altInputs.forEach(input => {
+            const value = input.value.trim();
+            if (value) alternatives.push(value);
+        });
+
+        const correctRadio = document.querySelector('input[name="correctAnswer"]:checked');
+        const correctAnswer = correctRadio ? correctRadio.value : null;
+
+        if (alternatives.length < 2) {
+            msg.textContent = '❌ Adicione pelo menos 2 alternativas!';
+            msg.className = 'clue-message error';
+            return;
+        }
+
+        if (!correctAnswer) {
+            msg.textContent = '❌ Selecione a alternativa correta!';
+            msg.className = 'clue-message error';
+            return;
+        }
+
+        const letters = ['A', 'B', 'C', 'D'];
+        questionData.alternatives = alternatives;
+        questionData.correctAnswer = correctAnswer;
+        questionData.answer = alternatives[letters.indexOf(correctAnswer)];
+
+    } else {
+        const answer = document.getElementById('newQuestionAnswer').value.trim();
+        if (!answer) {
+            msg.textContent = '❌ Digite a resposta correta!';
+            msg.className = 'clue-message error';
+            return;
+        }
+        questionData.answer = answer.toLowerCase().trim();
+    }
+
+    // Usar set com callback para garantir que foi salvo
     database.ref('questions/' + questionData.id).set(questionData).then(() => {
         msg.textContent = '✅ Etapa cadastrada com sucesso!';
         msg.className = 'clue-message success';
+        // Limpar formulário
         document.querySelectorAll('.question-form input, .question-form textarea').forEach(el => el.value = '');
+        document.querySelectorAll('input[name="correctAnswer"]').forEach(r => r.checked = false);
+        // Forçar atualização manual
+        loadAdminData();
+    }).catch(err => {
+        msg.textContent = '❌ Erro: ' + err.message;
+        msg.className = 'clue-message error';
     });
 }
 
+// ============ DELETAR ============
 function deleteQuestion(id) {
-    if (confirm('⚠️ Deseja excluir esta etapa do jogo?')) database.ref('questions/' + id).remove();
+    if (confirm('⚠️ Deseja excluir esta etapa do jogo?')) {
+        database.ref('questions/' + id).remove().then(() => {
+            loadAdminData();
+        });
+    }
 }
 
+// ============ RENDERIZAR LISTA DE QUESTÕES ============
 function renderQuestionsList() {
     const container = document.getElementById('questionsListAdmin');
-    if (allQuestions.length === 0) return container.innerHTML = '<p class="empty-message">Nenhuma etapa cadastrada.</p>';
+    if (!container) return;
+    
+    if (allQuestions.length === 0) {
+        container.innerHTML = '<p class="empty-message">📭 Nenhuma etapa cadastrada ainda. Crie uma missão acima!</p>';
+        return;
+    }
 
-    container.innerHTML = allQuestions.map(q => `
-        <div class="question-card">
-            <div class="question-header">
-                <span class="question-badge">Etapa #${q.order}</span>
-                <button onclick="deleteQuestion('${q.id}')" class="btn-small btn-delete">🗑️ Excluir</button>
-            </div>
-            <div style="margin: 10px 0; color: #1a1a2e; background: #f8f9fa; padding: 10px; border-radius: 8px;">
-                <strong>📍 Onde esconder o papel:</strong><br> ${q.location}
-            </div>
-            <div style="margin: 10px 0; color: #1a1a2e;">
-                <strong>🧮 Missão do papel:</strong> ${q.challenge}
-            </div>
-            <div style="margin: 10px 0; color: #155724; background: #d4edda; padding: 10px; border-radius: 8px; border: 1px solid #c3e6cb;">
-                <strong>🔐 Senha/Resultado:</strong> ${q.answer}
-            </div>
-        </div>
-    `).join('');
-}
+    const typeLabels = {
+        'descritiva': '📝 Descritiva',
+        'multipla': '🎯 Múltipla Escolha'
+    };
 
-function renderGroupsListRanking() {
-    const container = document.getElementById('groupsList');
-    if (allGroups.length === 0) return container.innerHTML = '<p class="empty-message">Nenhum grupo ativo...</p>';
+    container.innerHTML = allQuestions.map(q => {
+        let answerHtml = '';
+        const letters = ['A', 'B', 'C', 'D'];
 
-    const sortedGroups = [...allGroups].sort((a, b) => {
-        if (a.completed && !b.completed) return -1;
-        if (!a.completed && b.completed) return 1;
-        if (a.completed && b.completed) return (a.finalTime || 0) - (b.finalTime || 0);
-        return (b.currentQuestion || 0) - (a.currentQuestion || 0);
-    });
+        if (q.type === 'multipla') {
+            answerHtml = `
+                <div style="margin: 10px 0; background: #f0f7ff; padding: 15px; border-radius: 10px; border: 1px solid #b8d4f0;">
+                    <strong style="color: #1a5276;">📝 PERGUNTA DO DESAFIO (O que está NA PISTA FÍSICA):</strong>
+                    <div style="margin: 10px 0; font-size: 1.2em; color: #1a1a2e; padding: 12px; background: white; border-radius: 8px; border: 2px solid #3498db;">
+                        ${q.challenge}
+                    </div>
+                    <strong>🔘 Alternativas:</strong>
+                    ${q.alternatives.map((alt, i) => `
+                        <div style="padding: 8px 12px; margin: 5px 0; border-radius: 8px; ${q.correctAnswer === letters[i] ? 'background: #d4edda; border-left: 5px solid #27ae60; font-weight: bold;' : 'background: #f8f9fa; border-left: 5px solid #ddd;'}">
+                            <span style="font-weight: bold; color: #1a5276;">${letters[i]})</span> ${alt} 
+                            ${q.correctAnswer === letters[i] ? '✅ <span style="color:#27ae60;font-weight:bold;">CORRETA</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            answerHtml = `
+                <div style="margin: 10px 0; background: #f0f7ff; padding: 15px; border-radius: 10px; border: 1px solid #b8d4f0;">
+                    <strong style="color: #1a5276;">📝 PERGUNTA DO DESAFIO (O que está NA PISTA FÍSICA):</strong>
+                    <div style="margin: 10px 0; font-size: 1.2em; color: #1a1a2e; padding: 12px; background: white; border-radius: 8px; border: 2px solid #3498db;">
+                        ${q.challenge}
+                    </div>
+                    <div style="color: #155724; background: #d4edda; padding: 12px; border-radius: 8px; border: 2px solid #27ae60;">
+                        <strong>✅ RESPOSTA CORRETA:</strong> ${q.answer}
+                    </div>
+                </div>
+            `;
+        }
 
-    container.innerHTML = sortedGroups.map((g, i) => {
-        const prog = allQuestions.length > 0 ? Math.round(((g.currentQuestion || 0) / allQuestions.length) * 100) : 0;
-        let badge = g.completed ? '<span style="background:#27ae60;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">🏆 Venceu!</span>' : 
-                   (g.started ? '<span style="background:#3498db;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">🏃 Na Caçada</span>' : 
-                                '<span style="background:#95a5a6;padding:4px 12px;border-radius:12px;color:white;font-size:0.8em;font-weight:bold;">📖 Na Base</span>');
-        
         return `
-            <div class="group-card-admin" style="display: block; ${g.completed ? 'border-color: #27ae60;' : ''}">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <div><span style="font-size:1.5em; font-weight:bold; color:#f39c12; margin-right: 10px;">#${i + 1}</span><strong>${g.name}</strong></div>
-                    <div>${badge}</div>
+            <div class="question-card">
+                <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <span class="question-badge">Etapa #${q.order}</span>
+                        <span style="background: ${q.type === 'multipla' ? '#3498db' : '#27ae60'}; color: white; padding: 3px 14px; border-radius: 20px; font-size: 0.8em; font-weight: bold;">
+                            ${typeLabels[q.type] || q.type}
+                        </span>
+                    </div>
+                    <button onclick="deleteQuestion('${q.id}')" class="btn-small btn-delete">🗑️ Excluir</button>
                 </div>
-                <div style="background:#e9ecef; border-radius:10px; height:8px; margin-bottom: 5px;">
-                    <div style="width:${prog}%; height:100%; background:${g.completed ? '#27ae60' : '#f39c12'}; border-radius:10px; transition: width 0.5s;"></div>
+                
+                <div style="margin: 10px 0; background: #fff8e1; padding: 12px; border-radius: 8px; border-left: 5px solid #f39c12;">
+                    <strong>📍 PISTA (O que o aluno VÊ no celular):</strong><br> 
+                    <span style="font-size: 1.05em;">${q.location}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
-                    <span>Etapa ${g.currentQuestion || 0}/${allQuestions.length}</span>
-                    <span>⏱️ ${Math.floor((g.time || 0) / 60).toString().padStart(2, '0')}:${((g.time || 0) % 60).toString().padStart(2, '0')}</span>
+                
+                ${answerHtml}
+                
+                ${q.hint ? `<div style="margin: 10px 0; color: #856404; background: #fff3cd; padding: 10px 14px; border-radius: 8px; border-left: 5px solid #f39c12;">💡 DICA DO PROFESSOR: ${q.hint}</div>` : ''}
+                
+                <div style="margin-top: 8px; font-size: 0.85em; color: #999; background: #f8f9fa; padding: 6px 12px; border-radius: 6px;">
+                    🆔 ID: ${q.id}
                 </div>
-                <div style="margin-top: 10px; font-size: 0.85em; color: #999;">👤 ${g.members.join(', ')}</div>
             </div>
         `;
     }).join('');
 }
 
-function updateStats() {
-    document.getElementById('totalGroups').textContent = allGroups.length;
-    document.getElementById('totalQuestions').textContent = allQuestions.length;
-    document.getElementById('activeGroups').textContent = allGroups.filter(g => !g.completed && g.started).length;
-    document.getElementById('winnerGroups').textContent = allGroups.filter(g => g.completed).length;
+// ============ RENDERIZAR GRUPOS EM TEMPO REAL ============
+function renderGroupsListRanking() {
+    const container = document.getElementById('groupsList');
+    if (!container) return;
+    
+    if (allGroups.length === 0) {
+        container.innerHTML = '<p class="empty-message">👀 Nenhum grupo correndo pela escola no momento...</p>';
+        return;
+    }
+
+    // Ordenar: primeiro os vencedores, depois por progresso
+    const sortedGroups = [...allGroups].sort((a, b) => {
+        // Vencedores primeiro
+        if (a.completed && !b.completed) return -1;
+        if (!a.completed && b.completed) return 1;
+        if (a.completed && b.completed) return (a.finalTime || 0) - (b.finalTime || 0);
+        // Ordenar por progresso (maior primeiro)
+        return (b.currentQuestion || 0) - (a.currentQuestion || 0);
+    });
+
+    container.innerHTML = sortedGroups.map((g, i) => {
+        const prog = allQuestions.length > 0 ? Math.round(((g.currentQuestion || 0) / allQuestions.length) * 100) : 0;
+        
+        let badge = '';
+        if (g.completed) {
+            badge = '<span style="background:#27ae60;padding:4px 14px;border-radius:20px;color:white;font-size:0.8em;font-weight:bold;">🏆 Venceu!</span>';
+        } else if (g.started) {
+            badge = '<span style="background:#3498db;padding:4px 14px;border-radius:20px;color:white;font-size:0.8em;font-weight:bold;">🏃 Na Caçada</span>';
+        } else {
+            badge = '<span style="background:#95a5a6;padding:4px 14px;border-radius:20px;color:white;font-size:0.8em;font-weight:bold;">📖 Na Base</span>';
+        }
+        
+        // Tempo formatado
+        const timeSeconds = g.time || 0;
+        const minutes = Math.floor(timeSeconds / 60).toString().padStart(2, '0');
+        const seconds = (timeSeconds % 60).toString().padStart(2, '0');
+        
+        return `
+            <div class="group-card-admin" style="display: block; ${g.completed ? 'border-color: #27ae60; background: #f0faf0;' : ''}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <span style="font-size:1.5em; font-weight:bold; color:#f39c12; margin-right: 10px;">#${i + 1}</span>
+                        <strong style="font-size: 1.1em;">${g.name}</strong>
+                    </div>
+                    <div>${badge}</div>
+                </div>
+                <div style="background:#e9ecef; border-radius:10px; height:10px; margin-bottom: 8px; overflow: hidden;">
+                    <div style="width:${prog}%; height:100%; background:${g.completed ? '#27ae60' : '#f39c12'}; border-radius:10px; transition: width 0.5s ease;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #555; flex-wrap: wrap; gap: 5px;">
+                    <span>📌 Etapa ${g.currentQuestion || 0}/${allQuestions.length}</span>
+                    <span>⏱️ ${minutes}:${seconds}</span>
+                    <span>❌ Erros: ${g.errors || 0}</span>
+                    <span>💡 Dicas: ${g.hintsUsed || 0}/3</span>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.85em; color: #888;">👤 ${g.members ? g.members.join(', ') : 'Sem membros'}</div>
+                ${g.completed ? `<div style="margin-top: 5px; color: #27ae60; font-weight: bold;">🏆 COMPLETOU A CAÇADA!</div>` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
+// ============ ESTATÍSTICAS EM TEMPO REAL ============
+function updateStats() {
+    const totalGroups = document.getElementById('totalGroups');
+    const totalQuestions = document.getElementById('totalQuestions');
+    const activeGroups = document.getElementById('activeGroups');
+    const winnerGroups = document.getElementById('winnerGroups');
+    
+    if (totalGroups) totalGroups.textContent = allGroups.length;
+    if (totalQuestions) totalQuestions.textContent = allQuestions.length;
+    if (activeGroups) activeGroups.textContent = allGroups.filter(g => !g.completed && g.started).length;
+    if (winnerGroups) winnerGroups.textContent = allGroups.filter(g => g.completed).length;
+}
+
+// ============ RESETAR TODOS OS GRUPOS ============
 function resetAllGames() {
-    if (confirm('⚠️ ATENÇÃO: Deseja apagar todos os grupos da tela do professor e começar uma nova sessão?')) {
-        database.ref('groups').remove();
+    if (confirm('⚠️ ATENÇÃO: Deseja apagar TODOS os grupos e começar uma nova sessão?')) {
+        database.ref('groups').remove().then(() => {
+            loadAdminData();
+        });
     }
 }
 
+// ============ RESETAR UMA PERGUNTA ESPECÍFICA ============
+function resetGroupProgress(groupName) {
+    if (confirm(`⚠️ Deseja resetar o progresso do grupo "${groupName}"?`)) {
+        database.ref('groups/' + groupName).update({
+            currentQuestion: 0,
+            started: false,
+            completed: false,
+            errors: 0,
+            hintsUsed: 0,
+            time: 0
+        });
+    }
+}
+
+// ============ UTILITÁRIOS ============
 function switchScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('adminPassword').addEventListener('keypress', (e) => { if (e.key === 'Enter') adminLogin(); });
+    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') adminLogin();
+    });
+    toggleQuestionType();
 });
 
-window.adminLogin = adminLogin; window.adminLogout = adminLogout; window.switchTab = switchTab;
-window.addQuestion = addQuestion; window.deleteQuestion = deleteQuestion; window.resetAllGames = resetAllGames;
+// ============ EXPORTAR ============
+window.adminLogin = adminLogin;
+window.adminLogout = adminLogout;
+window.switchTab = switchTab;
+window.toggleQuestionType = toggleQuestionType;
+window.addQuestion = addQuestion;
+window.deleteQuestion = deleteQuestion;
+window.resetAllGames = resetAllGames;
+window.resetGroupProgress = resetGroupProgress;
