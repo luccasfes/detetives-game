@@ -1,7 +1,7 @@
 const ADMIN_PASSWORD = 'admin123';
 let allGroups = [];
 let allQuestions = [];
-let editingId = null; // 🔥 Variável para controlar se estamos editando ou criando
+let editingId = null; 
 
 // ============ LOGIN ============
 function adminLogin() {
