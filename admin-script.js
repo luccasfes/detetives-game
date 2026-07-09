@@ -46,6 +46,12 @@ function toggleQuestionType() {
 
 // ============ CARREGAR DADOS EM TEMPO REAL ============
 function loadAdminData() {
+    // 🔥 CORREÇÃO: remove listeners antigos antes de registrar novos.
+    // Sem isso, cada save/edição adicionava um listener extra no Firebase,
+    // fazendo a tela renderizar múltiplas vezes e acumulando memória com o tempo.
+    database.ref('groups').off();
+    database.ref('questions').off();
+
     database.ref('groups').on('value', (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -195,7 +201,11 @@ function editQuestion(id) {
 // ============ RESETAR FORMULÁRIO ============
 function resetQuestionForm() {
     editingId = null;
-    document.querySelectorAll('.question-form input, .question-form textarea').forEach(el => el.value = '');
+    document.querySelectorAll('.question-form input, .question-form textarea').forEach(el => {
+        // 🔥 CORREÇÃO: não zera o "value" de radios/checkboxes, senão os radios A/B/C/D
+        // perdem seu value="A"/"B"/"C"/"D" para sempre e a checagem de alternativa correta quebra.
+        if (el.type !== 'radio' && el.type !== 'checkbox') el.value = '';
+    });
     document.querySelectorAll('input[name="correctAnswer"]').forEach(r => r.checked = false);
     
     const msg = document.getElementById('addQuestionMessage');
