@@ -673,3 +673,381 @@ window.resetQuestionForm = resetQuestionForm;
 window.deleteQuestion = deleteQuestion;
 window.resetAllGames = resetAllGames;
 window.resetGroupProgress = resetGroupProgress;
+// ============================================================================
+// CENTRAL INTERATIVA — pausa, avisos, pontos, comandos por equipe e relatório
+// Esta seção funciona sem alterar o admin.html ou o styles.css.
+// ============================================================================
+let globalGamePaused = false;
+let adminPauseRef = null;
+
+function escapeAdminHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function injectAdminInteractiveStyles() {
+    if (document.getElementById('adminInteractiveStyles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'adminInteractiveStyles';
+    style.textContent = `
+        .live-control-panel {
+            background: linear-gradient(135deg, #f9f4e6, #fffdf8);
+            border: 2px solid #d6b460; box-shadow: 0 10px 28px rgba(48,39,20,.09);
+        }
+        .live-control-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px; margin-top: 15px;
+        }
+        .live-control-box {
+            background: #fff; border: 1px solid #ead9ad; border-radius: 14px;
+            padding: 15px; min-width: 0;
+        }
+        .live-control-box h3 { margin: 0 0 9px; color:#1b2436; }
+        .live-control-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .live-control-row .input-field { flex:1; min-width:180px; margin:0; }
+        .live-status {
+            display:inline-flex; align-items:center; gap:7px; padding:7px 12px;
+            border-radius:999px; font-weight:900; background:#e6f5ea; color:#25653b;
+        }
+        .live-status.paused { background:#fde7e4; color:#a33428; }
+        .admin-score-chip {
+            display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px;
+            background:#fff1b8; color:#624500; font-weight:900; white-space:nowrap;
+        }
+        .admin-group-actions {
+            display:flex; flex-wrap:wrap; gap:7px; margin-top:13px; padding-top:12px;
+            border-top:1px dashed #d8c9a8;
+        }
+        .admin-action-btn {
+            border:0; border-radius:9px; padding:8px 10px; cursor:pointer;
+            font-weight:800; background:#edf2f7; color:#1b2436;
+        }
+        .admin-action-btn:hover { transform:translateY(-1px); filter:brightness(.98); }
+        .admin-action-btn.primary { background:#dceefc; color:#155b87; }
+        .admin-action-btn.success { background:#dff3e7; color:#276846; }
+        .admin-action-btn.warning { background:#fff0cf; color:#7c5500; }
+        .admin-action-btn.danger { background:#f9dfdc; color:#a33428; }
+        .admin-live-message {
+            min-height: 22px; margin-top:9px; font-weight:800; color:#2e6b52;
+        }
+        @media(max-width:650px) {
+            .live-control-grid { grid-template-columns: 1fr; }
+            .admin-group-actions .admin-action-btn { flex:1 1 46%; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function ensureFinalQuestionOption() {
+    const select = document.getElementById('newQuestionType');
+    if (!select || select.querySelector('option[value="final"]')) return;
+    const option = document.createElement('option');
+    option.value = 'final';
+    option.textContent = '🎉 Final (sem resposta)';
+    select.appendChild(option);
+}
+
+function injectLiveControlPanel() {
+    injectAdminInteractiveStyles();
+    const rankingTab = document.getElementById('tabRanking');
+    if (!rankingTab || document.getElementById('liveControlPanel')) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'liveControlPanel';
+    panel.className = 'admin-section live-control-panel';
+    panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div>
+                <h2 style="margin-bottom:4px;">🎛️ Central de Comando</h2>
+                <p class="helper-text">Controle a partida em tempo real nos celulares das equipes.</p>
+            </div>
+            <span id="globalPauseStatus" class="live-status">▶️ Caçada liberada</span>
+        </div>
+        <div class="live-control-grid">
+            <div class="live-control-box">
+                <h3>⏯️ Pausar a partida</h3>
+                <p class="helper-text" style="margin-bottom:10px;">O cronômetro e as respostas param em todos os celulares.</p>
+                <button id="togglePauseButton" onclick="toggleGlobalPause()" class="btn-primary" style="width:auto;padding:10px 16px;">⏸️ Pausar todos</button>
+            </div>
+            <div class="live-control-box">
+                <h3>📢 Aviso geral</h3>
+                <div class="live-control-row">
+                    <input id="globalAnnouncementInput" class="input-field" maxlength="180" placeholder="Ex.: Faltam 10 minutos!">
+                    <button onclick="sendGlobalAnnouncement()" class="btn-primary" style="width:auto;padding:10px 16px;">Enviar</button>
+                </div>
+                <div id="liveControlMessage" class="admin-live-message"></div>
+            </div>
+            <div class="live-control-box">
+                <h3>📊 Relatório</h3>
+                <p class="helper-text" style="margin-bottom:10px;">Baixe classificação, pontos, tempo, erros e dicas.</p>
+                <button onclick="exportResultsCSV()" class="btn-primary" style="width:auto;padding:10px 16px;background:#2e6b52;">⬇️ Exportar CSV</button>
+            </div>
+        </div>
+    `;
+
+    rankingTab.insertBefore(panel, rankingTab.firstChild);
+    const announcementInput = document.getElementById('globalAnnouncementInput');
+    if (announcementInput) {
+        announcementInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') sendGlobalAnnouncement();
+        });
+    }
+}
+
+function showAdminLiveMessage(message, isError = false) {
+    const element = document.getElementById('liveControlMessage');
+    if (!element) return;
+    element.textContent = message;
+    element.style.color = isError ? '#a33428' : '#2e6b52';
+    clearTimeout(showAdminLiveMessage.timeoutId);
+    showAdminLiveMessage.timeoutId = setTimeout(() => { element.textContent = ''; }, 4000);
+}
+
+function updateGlobalPauseUI() {
+    const status = document.getElementById('globalPauseStatus');
+    const button = document.getElementById('togglePauseButton');
+    if (status) {
+        status.classList.toggle('paused', globalGamePaused);
+        status.textContent = globalGamePaused ? '⏸️ Caçada pausada' : '▶️ Caçada liberada';
+    }
+    if (button) {
+        button.textContent = globalGamePaused ? '▶️ Liberar todos' : '⏸️ Pausar todos';
+        button.style.background = globalGamePaused ? '#27ae60' : '#b3392e';
+    }
+}
+
+function attachAdminControlListener() {
+    if (adminPauseRef) adminPauseRef.off();
+    adminPauseRef = database.ref('gameControl/paused');
+    adminPauseRef.on('value', snapshot => {
+        globalGamePaused = Boolean(snapshot.val());
+        updateGlobalPauseUI();
+    });
+}
+
+function toggleGlobalPause() {
+    const nextState = !globalGamePaused;
+    database.ref('gameControl/paused').set(nextState).then(() => {
+        showAdminLiveMessage(nextState ? 'Todos os grupos foram pausados.' : 'Caçada liberada.');
+    }).catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+function sendGlobalAnnouncement() {
+    const input = document.getElementById('globalAnnouncementInput');
+    const message = input ? input.value.trim() : '';
+    if (!message) {
+        showAdminLiveMessage('Digite uma mensagem antes de enviar.', true);
+        return;
+    }
+
+    database.ref('gameControl/announcement').set({
+        message,
+        createdAt: Date.now()
+    }).then(() => {
+        input.value = '';
+        showAdminLiveMessage('Aviso enviado para todas as equipes.');
+    }).catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+function writeGroupCommand(groupName, command) {
+    return database.ref(`gameControl/groupCommands/${groupName}`).set({
+        ...command,
+        createdAt: Date.now()
+    });
+}
+
+function addScoreToGroup(groupName, amount = 50) {
+    database.ref(`groups/${groupName}/score`).transaction(current => (Number(current) || 0) + amount)
+        .then(() => showAdminLiveMessage(`+${amount} pontos para ${groupName}.`))
+        .catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+function giveHintToGroup(groupName) {
+    writeGroupCommand(groupName, { type: 'bonusHint' })
+        .then(() => showAdminLiveMessage(`Dica extra enviada para ${groupName}.`))
+        .catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+function sendMessageToGroup(groupName) {
+    const message = prompt(`Mensagem para a equipe "${groupName}":`);
+    if (!message || !message.trim()) return;
+
+    writeGroupCommand(groupName, { type: 'message', message: message.trim() })
+        .then(() => showAdminLiveMessage(`Mensagem enviada para ${groupName}.`))
+        .catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+function advanceGroupStage(groupName) {
+    database.ref(`groups/${groupName}`).once('value').then(snapshot => {
+        if (!snapshot.exists()) throw new Error('Equipe não encontrada.');
+        const data = snapshot.val();
+        if (data.completed) throw new Error('A equipe já concluiu a caçada.');
+
+        const targetIndex = Math.min(Number(data.currentQuestion || 0) + 1, allQuestions.length);
+        return Promise.all([
+            database.ref(`groups/${groupName}`).update({ currentQuestion: targetIndex }),
+            writeGroupCommand(groupName, { type: 'advance', targetIndex })
+        ]);
+    }).then(() => showAdminLiveMessage(`${groupName} avançou uma etapa.`))
+      .catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+}
+
+resetGroupProgress = function resetGroupProgressInteractive(groupName) {
+    if (!confirm(`⚠️ Deseja resetar o progresso do grupo "${groupName}"?`)) return;
+
+    const updates = {
+        currentQuestion: 0,
+        started: false,
+        completed: false,
+        errors: 0,
+        hintsUsed: 0,
+        score: 0,
+        firstTryCount: 0,
+        time: 0,
+        finalTime: null,
+        questionStats: null,
+        stageScores: null,
+        currentStageHintUsed: false,
+        currentStageErrors: 0
+    };
+
+    Promise.all([
+        database.ref(`groups/${groupName}`).update(updates),
+        writeGroupCommand(groupName, { type: 'reset' })
+    ]).then(() => showAdminLiveMessage(`${groupName} foi reiniciado.`))
+      .catch(error => showAdminLiveMessage(`Erro: ${error.message}`, true));
+};
+
+function exportResultsCSV() {
+    if (!allGroups.length) {
+        showAdminLiveMessage('Ainda não existem grupos para exportar.', true);
+        return;
+    }
+
+    const sorted = [...allGroups].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? -1 : 1;
+        if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+        return (a.finalTime || a.time || 0) - (b.finalTime || b.time || 0);
+    });
+
+    const quote = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = ['Posição', 'Equipe', 'Integrantes', 'Status', 'Etapa', 'Pontuação', 'Tempo (s)', 'Erros', 'Dicas', 'Acertos de primeira'];
+    const rows = sorted.map((group, index) => [
+        index + 1,
+        group.name,
+        (group.members || []).join(', '),
+        group.completed ? 'Concluiu' : (group.started ? 'Em andamento' : 'Não iniciou'),
+        `${group.currentQuestion || 0}/${allQuestions.length}`,
+        group.score || 0,
+        group.finalTime || group.time || 0,
+        group.errors || 0,
+        group.hintsUsed || 0,
+        group.firstTryCount || 0
+    ]);
+
+    const csv = '\uFEFF' + [header, ...rows].map(row => row.map(quote).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio-detetives-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showAdminLiveMessage('Relatório CSV gerado com sucesso.');
+}
+
+renderGroupsListRanking = function renderGroupsListRankingInteractive() {
+    const container = document.getElementById('groupsList');
+    if (!container) return;
+
+    if (allGroups.length === 0) {
+        container.innerHTML = '<p class="empty-message">👀 Nenhum grupo correndo pela escola no momento...</p>';
+        return;
+    }
+
+    const sortedGroups = [...allGroups].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? -1 : 1;
+        if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+        if (a.completed && b.completed) return (a.finalTime || 0) - (b.finalTime || 0);
+        if ((b.currentQuestion || 0) !== (a.currentQuestion || 0)) return (b.currentQuestion || 0) - (a.currentQuestion || 0);
+        return (a.time || 0) - (b.time || 0);
+    });
+
+    container.innerHTML = sortedGroups.map((group, index) => {
+        const progress = allQuestions.length > 0
+            ? Math.min(100, Math.round(((group.currentQuestion || 0) / allQuestions.length) * 100))
+            : 0;
+        const timeSeconds = group.completed ? (group.finalTime || group.time || 0) : (group.time || 0);
+        const minutes = Math.floor(timeSeconds / 60).toString().padStart(2, '0');
+        const secondsText = (timeSeconds % 60).toString().padStart(2, '0');
+        const encodedName = encodeURIComponent(group.name).replace(/'/g, '%27');
+        const safeName = escapeAdminHtml(group.name);
+        const safeMembers = escapeAdminHtml((group.members || []).join(', ') || 'Sem membros');
+
+        let statusBadge;
+        if (group.completed) {
+            statusBadge = '<span style="background:#27ae60;padding:4px 14px;border-radius:20px;color:white;font-size:.8em;font-weight:bold;">🏆 Venceu!</span>';
+        } else if (group.started) {
+            statusBadge = '<span style="background:#3498db;padding:4px 14px;border-radius:20px;color:white;font-size:.8em;font-weight:bold;">🏃 Na Caçada</span>';
+        } else {
+            statusBadge = '<span style="background:#95a5a6;padding:4px 14px;border-radius:20px;color:white;font-size:.8em;font-weight:bold;">📖 Na Base</span>';
+        }
+
+        return `
+            <div class="group-card-admin" style="display:block;${group.completed ? 'border-color:#27ae60;background:#f0faf0;' : ''}">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <span style="font-size:1.5em;font-weight:bold;color:#f39c12;margin-right:10px;">#${index + 1}</span>
+                        <strong style="font-size:1.1em;">${safeName}</strong>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <span class="admin-score-chip">⭐ ${Number(group.score || 0)} pts</span>
+                        ${statusBadge}
+                    </div>
+                </div>
+                <div style="background:#e9ecef;border-radius:10px;height:10px;margin-bottom:8px;overflow:hidden;">
+                    <div style="width:${progress}%;height:100%;background:${group.completed ? '#27ae60' : '#f39c12'};border-radius:10px;transition:width .5s ease;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:.9em;color:#555;flex-wrap:wrap;gap:7px;">
+                    <span>📌 Etapa ${group.currentQuestion || 0}/${allQuestions.length}</span>
+                    <span>⏱️ ${minutes}:${secondsText}</span>
+                    <span>❌ Erros: ${group.errors || 0}</span>
+                    <span>💡 Dicas: ${group.hintsUsed || 0}/3</span>
+                    <span>⚡ Primeira tentativa: ${group.firstTryCount || 0}</span>
+                </div>
+                <div style="margin-top:8px;font-size:.85em;color:#888;">👤 ${safeMembers}</div>
+                ${group.completed ? '<div style="margin-top:6px;color:#27ae60;font-weight:bold;">🏆 COMPLETOU A CAÇADA!</div>' : ''}
+                <div class="admin-group-actions">
+                    <button class="admin-action-btn success" onclick="addScoreToGroup(decodeURIComponent('${encodedName}'), 50)">⭐ +50 pontos</button>
+                    <button class="admin-action-btn warning" onclick="giveHintToGroup(decodeURIComponent('${encodedName}'))">💡 +1 dica</button>
+                    <button class="admin-action-btn primary" onclick="sendMessageToGroup(decodeURIComponent('${encodedName}'))">📨 Mensagem</button>
+                    <button class="admin-action-btn primary" onclick="advanceGroupStage(decodeURIComponent('${encodedName}'))" ${group.completed ? 'disabled' : ''}>⏭️ Avançar</button>
+                    <button class="admin-action-btn danger" onclick="resetGroupProgress(decodeURIComponent('${encodedName}'))">↩️ Resetar</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    ensureFinalQuestionOption();
+    injectLiveControlPanel();
+    attachAdminControlListener();
+    toggleQuestionType();
+});
+
+window.toggleGlobalPause = toggleGlobalPause;
+window.sendGlobalAnnouncement = sendGlobalAnnouncement;
+window.addScoreToGroup = addScoreToGroup;
+window.giveHintToGroup = giveHintToGroup;
+window.sendMessageToGroup = sendMessageToGroup;
+window.advanceGroupStage = advanceGroupStage;
+window.resetGroupProgress = resetGroupProgress;
+window.exportResultsCSV = exportResultsCSV;
