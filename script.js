@@ -221,15 +221,29 @@ function foundPaper() {
         winGame();
         return;
     }
-    
+
     const question = allQuestions[currentQuestionIndex];
-    
+    const descriptiveDiv = document.getElementById('descriptiveInput');
+    const multipleDiv = document.getElementById('multipleChoiceInput');
+    const answerInput = document.getElementById('answerInput');
+    const checkButton = document.getElementById('btnCheckAnswer');
+    const challengeTitle = document.querySelector('#phaseChallenge h2');
+    const challengeText = document.getElementById('challengeText');
+    const hintElement = document.getElementById('questionHint');
+    const hintButton = document.getElementById('btnShowHint');
+
     document.getElementById('phaseLocation').classList.remove('active');
     document.getElementById('phaseChallenge').classList.add('active');
-    
+
+    // Restaura o botão porque a etapa final troca seu texto e sua ação.
+    checkButton.disabled = false;
+    checkButton.textContent = '✅ Tentar Abrir Cadeado';
+    checkButton.onclick = checkAnswer;
+    if (challengeTitle) challengeTitle.textContent = '🔐 O Cadeado Numérico';
+
     document.getElementById('questionNumberChallenge').textContent = `Desafio da Etapa ${currentQuestionIndex + 1}`;
-    document.getElementById('challengeText').textContent = "🔐 Digite a resposta que vocês encontraram na pista física:";
-    
+    challengeText.textContent = '🔐 Digite a resposta que vocês encontraram na pista física:';
+
     // Resetar seleção
     selectedAlternative = null;
     document.getElementById('selectedAlternative').textContent = '';
@@ -237,27 +251,43 @@ function foundPaper() {
         btn.classList.remove('selected');
         btn.disabled = false;
     });
-    
-    const descriptiveDiv = document.getElementById('descriptiveInput');
-    const multipleDiv = document.getElementById('multipleChoiceInput');
-    const answerInput = document.getElementById('answerInput');
+
     answerInput.value = '';
     answerInput.disabled = false;
     answerInput.style.borderColor = '#ddd';
-    
+    document.getElementById('feedbackMessage').style.display = 'none';
+    document.getElementById('feedbackMessage').className = 'feedback-message';
+
+    // 🎉 ETAPA FINAL: não existe resposta para corrigir.
+    if (question.type === 'final') {
+        document.getElementById('questionNumberChallenge').textContent = `Etapa ${currentQuestionIndex + 1} - Final`;
+        if (challengeTitle) challengeTitle.textContent = '🎉 Tesouro Encontrado!';
+        challengeText.textContent = question.challenge || 'Parabéns! Vocês encontraram o tesouro!';
+
+        descriptiveDiv.style.display = 'none';
+        multipleDiv.style.display = 'none';
+        hintElement.style.display = 'none';
+        hintButton.style.display = 'none';
+
+        checkButton.textContent = '🎊 Uhul! Finalizar Caçada';
+        checkButton.onclick = finishFinalStage;
+        return;
+    }
+
     if (question.type === 'multipla') {
         descriptiveDiv.style.display = 'none';
         multipleDiv.style.display = 'block';
-        
+
+        const alternatives = question.alternatives || [];
         const letters = ['A', 'B', 'C', 'D'];
-        const shuffledIndices = shuffleAlternatives(question.alternatives);
+        const shuffledIndices = shuffleAlternatives(alternatives);
         alternativeOrder = shuffledIndices;
-        
+
         const buttons = document.querySelectorAll('.alt-btn');
         buttons.forEach((btn, index) => {
             if (index < shuffledIndices.length) {
                 const originalIndex = shuffledIndices[index];
-                btn.textContent = `${letters[index]}) ${question.alternatives[originalIndex]}`;
+                btn.textContent = `${letters[index]}) ${alternatives[originalIndex]}`;
                 btn.dataset.originalIndex = originalIndex;
                 btn.dataset.letter = letters[index];
                 btn.style.display = 'inline-block';
@@ -271,14 +301,8 @@ function foundPaper() {
         multipleDiv.style.display = 'none';
         answerInput.focus();
     }
-    
-    document.getElementById('btnCheckAnswer').disabled = false;
-    document.getElementById('feedbackMessage').style.display = 'none';
-    document.getElementById('feedbackMessage').className = 'feedback-message';
-    
+
     // Dicas
-    const hintElement = document.getElementById('questionHint');
-    const hintButton = document.getElementById('btnShowHint');
     if (question.hint) {
         hintElement.textContent = `💡 Dica da Central: ${question.hint}`;
         hintElement.style.display = 'none';
@@ -288,6 +312,42 @@ function foundPaper() {
         hintElement.style.display = 'none';
         hintButton.style.display = 'none';
     }
+}
+
+// ============ FINALIZAR ETAPA COMEMORATIVA ============
+function finishFinalStage() {
+    if (isProcessing || !gameStarted || isGameOver) return;
+
+    const question = allQuestions[currentQuestionIndex];
+    if (!question || question.type !== 'final') return;
+
+    isProcessing = true;
+    const button = document.getElementById('btnCheckAnswer');
+    button.disabled = true;
+
+    const timeSpentOnStage = Math.max(0, seconds - stageStartSeconds);
+    const updates = {
+        // A etapa "final" encerra a caça, mesmo sem resposta.
+        currentQuestion: allQuestions.length,
+        time: seconds
+    };
+
+    if (question.id) {
+        updates[`questionStats/${question.id}/order`] = question.order || (currentQuestionIndex + 1);
+        updates[`questionStats/${question.id}/errors`] = 0;
+        updates[`questionStats/${question.id}/timeSpent`] = timeSpentOnStage;
+    }
+
+    database.ref('groups/' + currentGroup).update(updates).then(() => {
+        currentQuestionIndex = allQuestions.length;
+        errorsPerQuestion = 0;
+        isProcessing = false;
+        winGame();
+    }).catch(() => {
+        isProcessing = false;
+        button.disabled = false;
+        showFeedback('❌ Não foi possível finalizar agora. Tentem novamente.', 'error');
+    });
 }
 
 // ============ SELECIONAR ALTERNATIVA ============
@@ -377,6 +437,13 @@ function checkAnswer() {
     }
     
     const question = allQuestions[currentQuestionIndex];
+
+    // Segurança extra: etapa final nunca deve passar pela correção de resposta.
+    if (question.type === 'final') {
+        finishFinalStage();
+        return;
+    }
+
     const userAnswer = document.getElementById('answerInput').value.trim();
     const btn = document.getElementById('btnCheckAnswer');
     
@@ -680,6 +747,7 @@ window.goToConfirm = goToConfirm;
 window.goBackToCreate = goBackToCreate;
 window.confirmGroup = confirmGroup;
 window.foundPaper = foundPaper;
+window.finishFinalStage = finishFinalStage;
 window.useHint = useHint;
 window.checkAnswer = checkAnswer;
 window.selectAlternative = selectAlternative;

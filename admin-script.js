@@ -40,7 +40,9 @@ function switchTab(tab) {
 // ============ ALTERNAR TIPO ============
 function toggleQuestionType() {
     const type = document.getElementById('newQuestionType').value;
-    document.getElementById('answerField').style.display = type === 'multipla' ? 'none' : 'block';
+
+    // A etapa final não possui resposta nem alternativas.
+    document.getElementById('answerField').style.display = type === 'descritiva' ? 'block' : 'none';
     document.getElementById('alternativesField').style.display = type === 'multipla' ? 'block' : 'none';
 }
 
@@ -111,8 +113,10 @@ function addQuestion() {
         order: order,
         type: type,
         location: location,
-        challenge: challenge || 'Resolva o desafio da pista!',
-        hint: hint || '',
+        challenge: challenge || (type === 'final'
+            ? 'Parabéns! Vocês encontraram o tesouro!'
+            : 'Resolva o desafio da pista!'),
+        hint: type === 'final' ? '' : (hint || ''),
         createdAt: editingId ? (allQuestions.find(x => x.id === editingId)?.createdAt || Date.now()) : Date.now()
     };
 
@@ -144,7 +148,7 @@ function addQuestion() {
         questionData.correctAnswer = correctAnswer;
         questionData.answer = alternatives[letters.indexOf(correctAnswer)];
 
-    } else {
+    } else if (type === 'descritiva') {
         const answer = document.getElementById('newQuestionAnswer').value.trim();
         if (!answer) {
             msg.textContent = '❌ Digite a resposta correta!';
@@ -152,6 +156,13 @@ function addQuestion() {
             return;
         }
         questionData.answer = answer.toLowerCase().trim();
+    } else if (type === 'final') {
+        // A etapa final serve apenas para comemorar e encerrar o jogo.
+        // Como usamos set(), qualquer answer antigo/undefined é removido do Firebase.
+    } else {
+        msg.textContent = '❌ Tipo de etapa inválido!';
+        msg.className = 'clue-message error';
+        return;
     }
 
     database.ref('questions/' + targetId).set(questionData).then(() => {
@@ -185,13 +196,16 @@ function editQuestion(id) {
         const altInputs = document.querySelectorAll('.alt-input');
         const radios = document.querySelectorAll('input[name="correctAnswer"]');
         const letters = ['A', 'B', 'C', 'D'];
+        const alternatives = q.alternatives || [];
         
         altInputs.forEach((input, i) => {
-            input.value = q.alternatives[i] || '';
+            input.value = alternatives[i] || '';
             radios[i].checked = (q.correctAnswer === letters[i]);
         });
+    } else if (q.type === 'descritiva') {
+        document.getElementById('newQuestionAnswer').value = q.answer || '';
     } else {
-        document.getElementById('newQuestionAnswer').value = q.answer;
+        document.getElementById('newQuestionAnswer').value = '';
     }
     
     toggleEditMode(true);
@@ -271,14 +285,33 @@ function renderQuestionsList() {
 
     const typeLabels = {
         'descritiva': '📝 Descritiva',
-        'multipla': '🎯 Múltipla Escolha'
+        'multipla': '🎯 Múltipla Escolha',
+        'final': '🎉 Final'
+    };
+
+    const typeColors = {
+        'descritiva': '#27ae60',
+        'multipla': '#3498db',
+        'final': '#8e44ad'
     };
 
     container.innerHTML = allQuestions.map(q => {
         let answerHtml = '';
         const letters = ['A', 'B', 'C', 'D'];
 
-        if (q.type === 'multipla') {
+        if (q.type === 'final') {
+            answerHtml = `
+                <div style="margin: 10px 0; background: #f4f0ff; padding: 15px; border-radius: 10px; border: 1px solid #c9b6e4;">
+                    <strong style="color: #6c3483;">🎉 MENSAGEM DE ENCERRAMENTO:</strong>
+                    <div style="margin: 10px 0; font-size: 1.2em; color: #1a1a2e; padding: 12px; background: white; border-radius: 8px; border: 2px solid #8e44ad;">
+                        ${q.challenge || 'Parabéns! Vocês encontraram o tesouro!'}
+                    </div>
+                    <div style="color: #6c3483; background: #eee5f8; padding: 12px; border-radius: 8px;">
+                        🎊 Esta etapa não exige resposta. O aluno verá o botão <strong>“Uhul! Finalizar Caçada”</strong>.
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'multipla') {
             answerHtml = `
                 <div style="margin: 10px 0; background: #f0f7ff; padding: 15px; border-radius: 10px; border: 1px solid #b8d4f0;">
                     <strong style="color: #1a5276;">📝 PERGUNTA DO DESAFIO (O que está NA PISTA FÍSICA):</strong>
@@ -314,7 +347,7 @@ function renderQuestionsList() {
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div>
                         <span class="question-badge">Etapa #${q.order}</span>
-                        <span style="background: ${q.type === 'multipla' ? '#3498db' : '#27ae60'}; color: white; padding: 3px 14px; border-radius: 20px; font-size: 0.8em; font-weight: bold;">
+                        <span style="background: ${typeColors[q.type] || '#7f8c8d'}; color: white; padding: 3px 14px; border-radius: 20px; font-size: 0.8em; font-weight: bold;">
                             ${typeLabels[q.type] || q.type}
                         </span>
                     </div>
@@ -591,12 +624,23 @@ function importQuestionsAI() {
             };
 
             if (q.type === 'multipla') {
+                if (!Array.isArray(q.alternatives) || q.alternatives.length < 2 || !q.correctAnswer) {
+                    throw new Error(`A etapa ${order} de múltipla escolha está incompleta.`);
+                }
                 questionData.alternatives = q.alternatives;
                 questionData.correctAnswer = q.correctAnswer;
                 const letters = ['A', 'B', 'C', 'D'];
                 questionData.answer = q.alternatives[letters.indexOf(q.correctAnswer)];
-            } else {
+            } else if (q.type === 'descritiva') {
+                if (q.answer === undefined || q.answer === null || String(q.answer).trim() === '') {
+                    throw new Error(`A etapa ${order} descritiva precisa de uma resposta.`);
+                }
                 questionData.answer = String(q.answer).toLowerCase().trim();
+            } else if (q.type === 'final') {
+                questionData.challenge = q.challenge || 'Parabéns! Vocês encontraram o tesouro!';
+                questionData.hint = '';
+            } else {
+                throw new Error(`Tipo inválido na etapa ${order}: ${q.type}`);
             }
 
             promises.push(database.ref('questions/' + targetId).set(questionData));
