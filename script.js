@@ -11,9 +11,11 @@ let isGameOver = false;
 let errorsPerQuestion = 0;
 let blockedUntil = 0;
 let alternativeOrder = [];
-let isProcessing = false; // Evita múltiplos cliques
-let blockCountdownInterval = null; // 🔥 NOVO: controla o contador em tempo real do bloqueio
-let stageStartSeconds = 0; // 🔥 NOVO: marca em que segundo do cronômetro a etapa atual começou (para analytics do professor)
+let isProcessing = false; 
+let blockCountdownInterval = null; 
+let stageStartSeconds = 0; 
+let challengeSetupIndex = -1;
+let pendingShowPhaseLocation = false; // 🔥 true quando a Etapa 1 tentou renderizar mas as perguntas ainda não tinham chegado do Firebase
 
 // ============ CARREGAR DADOS ============
 function loadQuestions() {
@@ -23,6 +25,10 @@ function loadQuestions() {
             allQuestions = Object.values(data).sort((a, b) => (a.order || 0) - (b.order || 0));
             document.getElementById('totalQuestions').textContent = allQuestions.length;
             if (gameStarted) renderProgressDots();
+            // 🔥 Se a Etapa 1 ficou esperando as perguntas chegarem, renderiza agora que os dados já chegaram
+            if (gameStarted && pendingShowPhaseLocation) {
+                showPhaseLocation();
+            }
         } else {
             allQuestions = [];
             document.getElementById('totalQuestions').textContent = '0';
@@ -166,6 +172,19 @@ function startGame() {
 
 // ============ FASE 1: BUSCANDO O PAPEL FÍSICO ============
 function showPhaseLocation() {
+    // 🔥 Se as perguntas ainda não chegaram do Firebase, NÃO finaliza o jogo -
+    // só espera e mostra um aviso. Sem essa checagem, o jogo entendia "0 perguntas
+    // carregadas" como "já terminamos tudo" e marcava a equipe como concluída.
+    if (allQuestions.length === 0) {
+        pendingShowPhaseLocation = true;
+        document.getElementById('phaseChallenge').classList.remove('active');
+        document.getElementById('phaseLocation').classList.add('active');
+        document.getElementById('questionNumberLocation').textContent = 'Carregando...';
+        document.getElementById('locationText').textContent = '⏳ Carregando as pistas da missão, aguarde um instante...';
+        return;
+    }
+    pendingShowPhaseLocation = false;
+
     if (currentQuestionIndex >= allQuestions.length) {
         winGame();
         return;
@@ -221,6 +240,13 @@ function foundPaper() {
         winGame();
         return;
     }
+
+    if (challengeSetupIndex === currentQuestionIndex) {
+        document.getElementById('phaseLocation').classList.remove('active');
+        document.getElementById('phaseChallenge').classList.add('active');
+        return;
+    }
+    challengeSetupIndex = currentQuestionIndex;
 
     const question = allQuestions[currentQuestionIndex];
     const descriptiveDiv = document.getElementById('descriptiveInput');
@@ -349,6 +375,18 @@ function finishFinalStage() {
         showFeedback('❌ Não foi possível finalizar agora. Tentem novamente.', 'error');
     });
 }
+
+// ============ VOLTAR PRA PISTA (sem resetar progresso) ============
+function voltarParaPista() {
+    if (!gameStarted || isGameOver) return;
+    if (typeof gamePaused !== 'undefined' && gamePaused) {
+        showAnnouncement('A caçada está pausada. Aguardem a liberação.');
+        return;
+    }
+    document.getElementById('phaseChallenge').classList.remove('active');
+    document.getElementById('phaseLocation').classList.add('active');
+}
+window.voltarParaPista = voltarParaPista;
 
 // ============ SELECIONAR ALTERNATIVA ============
 function selectAlternative(letter) {
@@ -683,6 +721,8 @@ function cleanupAndReset() {
     alternativeOrder = [];
     isProcessing = false;
     stageStartSeconds = 0;
+    pendingShowPhaseLocation = false;
+    challengeSetupIndex = -1;
     
     document.getElementById('timerDisplay').textContent = '00:00';
     document.getElementById('groupNameInput').value = '';
@@ -1019,13 +1059,26 @@ function attachGlobalControlListeners() {
     pauseControlRef = database.ref('gameControl/paused');
     pauseControlRef.on('value', snapshot => setGamePaused(Boolean(snapshot.val())));
 
+    // 🔥 CORREÇÃO: o aviso do professor fica salvo no Firebase para sempre (até ser
+    // sobrescrito por um novo). Sem esse controle, toda vez que uma equipe entrava
+    // no jogo, o listener disparava com o ÚLTIMO aviso já enviado (mesmo que antigo)
+    // e mostrava de novo, como se fosse novidade.
+    let isFirstAnnouncementSnapshot = true;
     announcementControlRef = database.ref('gameControl/announcement');
     announcementControlRef.on('value', snapshot => {
         const data = snapshot.val();
+
+        // Na primeira leitura, só registra o que já existia ali - não exibe nada.
+        if (isFirstAnnouncementSnapshot) {
+            isFirstAnnouncementSnapshot = false;
+            lastAnnouncementAt = (data && data.createdAt) ? data.createdAt : 0;
+            return;
+        }
+
         if (!data || !data.message || !data.createdAt) return;
         if (data.createdAt <= lastAnnouncementAt) return;
         lastAnnouncementAt = data.createdAt;
-        if (Date.now() - data.createdAt <= 10 * 60 * 1000) showAnnouncement(data.message);
+        showAnnouncement(data.message);
     });
 }
 

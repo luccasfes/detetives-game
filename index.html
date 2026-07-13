@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔍 Detetives Matemáticos</title>
+    <title>🔍 Agência de Detetives</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="detetive.svg">
 </head>
@@ -152,6 +152,14 @@
                         </div>
                         
                         <button onclick="checkAnswer()" class="btn-check-answer" id="btnCheckAnswer">✅ Tentar Abrir Cadeado</button>
+
+                        <!-- 🔥 Voltar para reler a pista, sem perder o progresso da etapa (erros, dicas, bloqueio) -->
+                        <div style="text-align: center; margin-top: 12px;">
+                            <button type="button" id="btnVoltarPista" onclick="voltarParaPista()" class="btn-outline">
+                                🔍 Voltar e Reler a Pista
+                            </button>
+                        </div>
+
                         <div id="feedbackMessage" class="feedback-message"></div>
                     </div>
 
